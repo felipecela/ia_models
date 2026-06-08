@@ -112,3 +112,164 @@ En la interfaz te aparecerá un menú desplegable. Si le pides a OpenClaw que cl
 Esta arquitectura es la definición de "Inferencia Adaptativa". Tienes modelos que van desde los 8B hasta los 32B, utilizando diferentes técnicas de cuantización, listos para relevarse según la carga computacional que exija tu tarea.
 
 Para comenzar a desplegar esto de forma ordenada sin saturar el sistema, ¿te parece bien si empezamos bajando los modelos EXL2 para configurar la base de autocompletado en tu entorno de código?
+
+
+---
+
+
+
+Para desplegar este entorno de inferencia avanzada con la máxima estabilidad y sin comprometer el aislamiento de tu sistema de archivos en la unidad exFAT, utilizaremos **Docker** para los motores complejos (**ExLlamaV2** y **SGLang**) y **APT** nativo para **Ollama**.
+
+Como has especificado que requieres el uso estricto de **paquetes `.deb` o `apt download**`, evitaremos por completo el uso de instaladores `pip` globales (que pueden ensuciar las librerías del sistema) o scripts que descarguen binarios directos de internet sin firma. Para descargar los modelos desde HuggingFace de forma nativa en Linux, utilizaremos `huggingface-cli` aislado en un entorno seguro o mediante herramientas empaquetadas en Debian.
+
+---
+
+## ETAPA 1: Preparación del Sistema y Clientes de Descarga
+
+### 1. Descarga e Instalación del Cliente HuggingFace Nativamente
+
+En lugar de usar `pip install` que requiere configurar entornos virtuales, en Ubuntu 24.04/2026 puedes instalar las herramientas de transferencia de datos masivos directamente con herramientas del sistema. Para bajar repositorios de Git grandes con tensores `.safetensors` o `.exl2`, usaremos `git-lfs` (Large File Storage).
+
+Ejecuta en tu terminal para descargar e instalar los paquetes `.deb` necesarios:
+
+```bash
+# Crear un directorio temporal limpio para los paquetes .deb
+mkdir -p ~/Downloads/deb_ia && cd ~/Downloads/deb_ia
+
+# Descargar de forma local los archivos .deb oficiales de los repositorios de Ubuntu
+sudo apt-get update
+apt download git-lfs python3-huggingface-hub
+
+# Instalación limpia de los paquetes locales descargados
+sudo dpkg -i git-lfs_*.deb python3-huggingface-hub_*.deb
+
+# En caso de que falte alguna dependencia menor, este comando la resuelve desde APT
+sudo apt-get install -f
+
+# Inicializar Git LFS para que reconozca los pesos de los modelos grandes
+git lfs install
+
+```
+
+---
+
+## ETAPA 2: Descarga de Modelos en el SSD Compartido (`ai_core`)
+
+Nos moveremos a la estructura de directorios que tu script de montaje automático genera en tu SSD encriptado.
+
+### 1. Entorno ExLlamaV2 (Modelos `.exl2`)
+
+Nos posicionamos en el almacenamiento exclusivo de ExLlamaV2 para descargar los dos modelos de la rama de alta velocidad (autocompletado rápido y chat lógico System 2).
+
+```bash
+cd /home/fcela-ga/sgoinfre/ai_core/exllamav2_storage
+
+# Descarga del Mecanógrafo (DeepSeek-Coder-V3-8B a 6.0 bpw)
+# Usamos la herramienta nativa de HuggingFace descargada por APT
+huggingface-cli download turboderp/DeepSeek-Coder-V3-8B-exl2-6.0bpw --local-dir deepseek-coder-exl2 --local-dir-use-symlinks False
+
+# Descarga del Pensador Instantáneo (Llama-4-Reasoning-8B-EXL2)
+huggingface-cli download mradermacher/Llama-4-Reasoning-8B-i1-exl2 --local-dir llama4-reasoning-exl2 --local-dir-use-symlinks False
+
+```
+
+> *Nota Crítica:* El flag `--local-dir-use-symlinks False` es **obligatorio**. Al estar en una unidad exFAT compartida con Windows, si dejas que HuggingFace cree enlaces simbólicos, la descarga fallará con un error de sistema. Esto fuerza la descarga del archivo crudo plano.
+
+### 2. Entorno SGLang (Modelos `AWQ`)
+
+SGLang requiere el formato de pesos nativo para procesar las ráfagas de contexto de tus agentes en **OpenClaw**.
+
+```bash
+cd /home/fcela-ga/sgoinfre/ai_core/sglang_storage
+
+# Descarga del Gestor Ágil (Llama-4-8B-Instruct-AWQ)
+huggingface-cli download casperhansen/llama-4-8b-instruct-awq --local-dir llama4-8b-awq --local-dir-use-symlinks False
+
+```
+
+### 3. Entorno Ollama (Modelos `.gguf` Híbridos)
+
+Para Ollama no utilizaremos HuggingFace, ya que Ollama gestiona su propio registro de forma interna a través de su API nativa. Sin embargo, primero debemos asegurar la instalación del motor mediante un paquete oficial.
+
+---
+
+## ETAPA 3: Instalación de Motores mediante `.deb` e Inferencia
+
+### 1. Instalación de Ollama Nativo vía `.deb`
+
+Ollama distribuye paquetes oficiales precompilados para sistemas Debian/Ubuntu. Vamos a bajarnos el instalador de arquitectura `amd64`:
+
+```bash
+cd ~/Downloads/deb_ia
+
+# Descargar el paquete de los servidores oficiales de Ollama
+wget https://ollama.com/download/ollama-linux-amd64.deb
+
+# Instalar el paquete de forma local
+sudo dpkg -i ollama-linux-amd64.deb
+
+```
+
+Dado que tu script de montaje automático (`mount-bitlocker.service`) ya inyecta de forma precisa el archivo de configuración `override.conf` redirigiendo `OLLAMA_MODELS` hacia tu SSD en `/home/fcela-ga/sgoinfre/ai_core/ollama_storage`, el servicio ya sabe dónde buscar.
+
+Procedemos a descargar los pesos híbridos (los que desbordarán a tus 32 GB de RAM):
+
+```bash
+# Asegurar que el servicio está activo tras la instalación por .deb
+sudo systemctl start ollama
+
+# Descargar el Arquitecto de código profundo (DeepSeek-R1 14B)
+ollama pull deepseek-r1:14b
+
+# Descargar el Analista Documental Pesado (Qwen 2.5 32B)
+ollama pull qwen2.5:32b
+
+```
+
+---
+
+## ETAPA 4: Configuración y Despliegue de los Contenedores (ExLlamaV2 y SGLang)
+
+Para garantizar la máxima eficiencia computacional y que los motores no compitan por los 8 GB de VRAM de tu RTX 4070, utilizaremos los contenedores Docker oficiales que realizan llamadas directas al Kernel sin pérdida de rendimiento.
+
+### 1. Lanzamiento del Motor ExLlamaV2 (TabbyAPI)
+
+Este contenedor levantará el puerto `5000` y leerá tus modelos `.exl2` de la unidad BitLocker:
+
+```bash
+docker run -d --gpus all \
+  --name exllamav2-api \
+  --restart unless-stopped \
+  -v /home/fcela-ga/sgoinfre/ai_core/exllamav2_storage:/models \
+  -p 5000:5000 \
+  berot3/tabbyapi:latest
+
+```
+
+### 2. Lanzamiento del Motor SGLang
+
+Este contenedor levantará el puerto `30000`, mapeando los pesos AWQ para OpenClaw:
+
+```bash
+docker run -d --gpus all \
+  --name sglang-server \
+  --ipc=host \
+  -v /home/fcela-ga/sgoinfre/ai_core/sglang_storage:/root/.cache/huggingface \
+  -p 30000:30000 \
+  lmsysorg/sglang:latest \
+  python3 -m sglang.launch_server --model-path /root/.cache/huggingface/llama4-8b-awq --port 30000 --host 0.0.0.0
+
+```
+
+---
+
+## Verificación de Canales de Inferencia
+
+Una vez completadas las descargas, puedes comprobar el estado de los tres puertos ejecutando este comando de diagnóstico en tu terminal de Ubuntu:
+
+```bash
+sudo ss -tulpn | grep -E '11434|5000|30000'
+
+```
+
+Si los tres servicios responden, el hardware está listo. Las aplicaciones **OpenCode** y **OpenClaw** ya pueden consumir los endpoints locales de manera adaptativa. El almacenamiento se mantiene consolidado en tu unidad encriptada, protegido contra corrupciones en el apagado por el script de Systemd que orquestamos previamente.
