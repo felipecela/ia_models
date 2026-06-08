@@ -273,3 +273,118 @@ sudo ss -tulpn | grep -E '11434|5000|30000'
 ```
 
 Si los tres servicios responden, el hardware está listo. Las aplicaciones **OpenCode** y **OpenClaw** ya pueden consumir los endpoints locales de manera adaptativa. El almacenamiento se mantiene consolidado en tu unidad encriptada, protegido contra corrupciones en el apagado por el script de Systemd que orquestamos previamente.
+
+
+---
+
+
+
+Tienes toda la razón. Usar `apt` directamente es una práctica mucho más segura y robusta que forzar la instalación con `dpkg`, ya que `apt` se encarga de resolver y descargar cualquier dependencia secundaria automáticamente.
+
+Y respecto a Ollama, excelente apunte. Si ya ejecutaste en su momento el script oficial (`curl -fsSL ... | sh`), el binario y el servicio de Systemd ya están perfectamente integrados en tu Ubuntu. Intentar reinstalarlo con un `.deb` por encima solo crearía conflictos innecesarios.
+
+Aquí tienes el proceso completo, pulido y adaptado a tus directrices exactas, eliminando las redundancias y usando las herramientas correctas.
+
+---
+
+## ETAPA 1: Preparación del Sistema (Vía APT)
+
+Vamos a instalar los clientes de descarga directamente desde los repositorios oficiales de Ubuntu usando `apt`.
+
+Ejecuta en tu terminal:
+
+```bash
+# 1. Actualizar los índices de los repositorios
+sudo apt update
+
+# 2. Instalar Git LFS y la librería de HuggingFace de forma limpia
+sudo apt install -y git-lfs python3-huggingface-hub
+
+# 3. Inicializar Git LFS en tu usuario (Vital para modelos grandes)
+git lfs install
+
+```
+
+---
+
+## ETAPA 2: Descarga de Modelos al SSD Compartido (`ai_core`)
+
+Nos aseguramos de que estamos apuntando a las carpetas correctas dentro de tu unidad exFAT encriptada y usamos el flag antitablas de Linux (`--local-dir-use-symlinks False`) para evitar errores de escritura.
+
+### 1. Entorno ExLlamaV2 (Modelos `.exl2` para OpenCode y Razonamiento Rápido)
+
+```bash
+# Entrar al directorio
+cd /home/fcela-ga/sgoinfre/ai_core/exllamav2_storage
+
+# Descarga del Mecanógrafo (DeepSeek-Coder-V3-8B a 6.0 bpw)
+huggingface-cli download turboderp/DeepSeek-Coder-V3-8B-exl2-6.0bpw --local-dir deepseek-coder-exl2 --local-dir-use-symlinks False
+
+# Descarga del Pensador Instantáneo (Llama-4-Reasoning-8B-EXL2)
+huggingface-cli download mradermacher/Llama-4-Reasoning-8B-i1-exl2 --local-dir llama4-reasoning-exl2 --local-dir-use-symlinks False
+
+```
+
+### 2. Entorno SGLang (Modelos `AWQ` para OpenClaw)
+
+```bash
+# Entrar al directorio
+cd /home/fcela-ga/sgoinfre/ai_core/sglang_storage
+
+# Descarga del Gestor Ágil (Llama-4-8B-Instruct-AWQ)
+huggingface-cli download casperhansen/llama-4-8b-instruct-awq --local-dir llama4-8b-awq --local-dir-use-symlinks False
+
+```
+
+---
+
+## ETAPA 3: Descarga de Modelos Híbridos en Ollama
+
+Dado que Ollama ya está instalado y tu script de BitLocker ya redirigió la variable de entorno al SSD, solo necesitamos levantar el servicio y pedirle que traiga los modelos a su carpeta nativa.
+
+```bash
+# 1. Asegurar que el servicio está corriendo
+sudo systemctl start ollama
+
+# 2. Descargar el Arquitecto de código profundo (DeepSeek-R1 14B)
+ollama pull deepseek-r1:14b
+
+# 3. Descargar el Analista Documental Pesado (Qwen 2.5 32B)
+ollama pull qwen2.5:32b
+
+```
+
+---
+
+## ETAPA 4: Orquestación de los Contenedores (SGLang y ExLlamaV2)
+
+Con los archivos descargados en el SSD, procedemos a levantar los motores hiperoptimizados. Estos comandos Docker mapean tus carpetas de modelos directamente a los puertos de tu máquina local.
+
+### 1. Levantar el Motor ExLlamaV2 (Para OpenCode)
+
+```bash
+docker run -d --gpus all \
+  --name exllamav2-api \
+  --restart unless-stopped \
+  -v /home/fcela-ga/sgoinfre/ai_core/exllamav2_storage:/models \
+  -p 5000:5000 \
+  berot3/tabbyapi:latest
+
+```
+
+### 2. Levantar el Motor SGLang (Para OpenClaw)
+
+```bash
+docker run -d --gpus all \
+  --name sglang-server \
+  --ipc=host \
+  -v /home/fcela-ga/sgoinfre/ai_core/sglang_storage:/root/.cache/huggingface \
+  -p 30000:30000 \
+  lmsysorg/sglang:latest \
+  python3 -m sglang.launch_server --model-path /root/.cache/huggingface/llama4-8b-awq --port 30000 --host 0.0.0.0
+
+```
+
+Con este flujo, las descargas se realizan de forma totalmente segura usando el gestor de paquetes nativo de Ubuntu, manteniendo limpio tu ecosistema y aprovechando la instalación que ya tenías operativa.
+
+Mientras se ejecutan estas descargas (que tomarán un tiempo debido al peso de los archivos), ¿quieres que vayamos preparando el archivo `config.json` de OpenCode en VS Code, o prefieres que ajustemos primero los endpoints en la interfaz de OpenClaw?
