@@ -789,3 +789,15 @@ ollama pull phi4
 ¡Y con esto tu documentación está **impecable**! Se refleja la descarga completa de los pesos gigantes (como los 19 GB de Qwen 2.5) y las inclusiones que no contemplaba el plan original pero que completaste con éxito, como el modelo `phi4` de Microsoft, que es una bestia para razonamiento lógico y matemáticas.
 
 ¿Confirmas que este registro ya refleja de forma exacta el estado final de tus repositorios?
+
+
+
+---
+
+
+
+ollama pull phi4-reasoning:plus
+
+ollama pull phi4-reasoning:14b-q4_K_M
+
+
