@@ -800,4 +800,6 @@ ollama pull phi4-reasoning:plus
 
 ollama pull phi4-reasoning:14b-q4_K_M
 
+ollama pull phi4-mini
+
 
