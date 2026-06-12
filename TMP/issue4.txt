@@ -1,0 +1,5 @@
+A partir de la versión 13 se incluyen unos scripts de Python al final, uno de ellos es el siguiente y resulta que estos scripts no se tienen actualmente.
+
+indexar_vault.py
+
+
