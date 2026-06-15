@@ -1,22 +1,4 @@
 # PLAN DE TRABAJO PARA EL DESARROLLO
-# Contexto General del Proyecto
-
-He analizado las capacidades de mi equipo, compuesto por un portátil OMEN con 32 GB de RAM, procesador Intel Ultra 7 255 y tarjeta gráfica NVIDIA RTX 4070, con el objetivo de ejecutar localmente modelos de inteligencia artificial especializados en diferentes niveles de razonamiento, optimizando el equilibrio entre capacidad analítica, rendimiento y consumo de recursos.
-
-Como resultado de este análisis, he desarrollado principalmente el sistema Autoboot_Cluster_V10 junto con OpenClaw y un Orquestator Router implementado en Python. La arquitectura actual tiene como finalidad orquestar distintos modelos locales mediante una capa inteligente de enrutamiento.
-
-El flujo general consiste en que OpenClaw recibe inicialmente las solicitudes y utiliza un modelo PHI de Microsoft como capa inicial de análisis. Posteriormente, en función del nivel de razonamiento requerido, la petición es derivada dinámicamente hacia SGLang u Ollama para ejecutar el modelo más adecuado según la complejidad de la tarea.
-
-Adicionalmente, todos los modelos se almacenan en una unidad SSD compartida entre Windows y Linux utilizando formato exFAT. Debido a las limitaciones inherentes a este sistema de archivos, se han realizado diversas adaptaciones técnicas para garantizar la compatibilidad y el correcto funcionamiento de toda la infraestructura.
-
-# Objetivo General
-
-He desarrollado la aplicación que te adjunto a través de múltiples ciclos de evolución, incorporando progresivamente nuevas funcionalidades, correcciones, optimizaciones y mejoras hasta alcanzar la versión actual del sistema.
-
-Necesito que realices un proceso integral de auditoría técnica, validación, corrección, revalidación y consolidación de toda la solución implementada, utilizando un enfoque iterativo que permita detectar, corregir y volver a verificar cualquier problema encontrado hasta alcanzar el máximo nivel posible de estabilidad, seguridad, robustez, coherencia arquitectónica y fiabilidad operativa.
-
-No debes asumir que la versión actual es correcta por el hecho de funcionar aparentemente. Debes partir de una postura crítica y analítica, verificando cada componente, integración, flujo de trabajo, automatización y decisión técnica para identificar cualquier posible problema presente o futuro.
-
 # Fase 1 – Auditoría Técnica Integral
 
 Necesito que realices una auditoría técnica completa de toda la solución implementada.
