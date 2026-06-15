@@ -720,15 +720,25 @@ fi
 section "5/7 — ChromaDB (:$PORT_CHROMADB)"
 ensure_container_stopped "chromadb"
 
+# Generar chroma_config.yaml si no existe
+if [[ ! -f "${AI_HOME}/chroma_config.yaml" ]]; then
+cat > "${AI_HOME}/chroma_config.yaml" << YAML_EOF
+port: 8000
+listen_address: "0.0.0.0"
+persist_path: "/data"
+allow_reset: false
+YAML_EOF
+    ok "chroma_config.yaml generado en ${AI_HOME}"
+fi
+
 # Eliminamos variables inútiles y mapeamos directamente a /data
 docker run -d \
     --name chromadb \
     --network "$DOCKER_NET" \
     -p "${PORT_CHROMADB}:8000" \
     -v chromadb_data:/data \
-    -e ANONYMIZED_TELEMETRY=false \
-    -e CHROMA_SERVER_LOG_LEVEL=warning \
-    -e CHROMA_SERVER_HOST=0.0.0.0 \
+    -v "${AI_HOME}/chroma_config.yaml:/chroma/config.yaml:ro" \
+    -e CONFIG_PATH=/chroma/config.yaml \
     --restart unless-stopped \
     ghcr.io/chroma-core/chroma:latest
 
@@ -738,7 +748,7 @@ RETRY_COUNT=0
 info "Esperando que ChromaDB inicialice su API HTTP en 127.0.0.1:${PORT_CHROMADB}..."
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    CHROMA_STATUS=$(get_http_status "http://127.0.0.1:${PORT_CHROMADB}/api/v1/heartbeat")
+    CHROMA_STATUS=$(get_http_status "http://127.0.0.1:${PORT_CHROMADB}/api/v2/heartbeat")
     
     if [ "$CHROMA_STATUS" = "200" ]; then
         CHROMADB_READY=true

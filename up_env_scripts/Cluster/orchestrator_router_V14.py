@@ -365,7 +365,7 @@ async def health(request: Request):
             vistos[url] = await _health_ok(url, _shared_http_client)
         backends[n] = vistos[url]
 
-    chroma_ok = await _health_ok(f"{CHROMA_URL}/api/v1/heartbeat", _shared_http_client)
+    chroma_ok = await _health_ok(f"{CHROMA_URL}/api/v2/heartbeat", _shared_http_client)
     searxng_ok = await _health_ok("http://localhost:8888/search?q=test&format=json", _shared_http_client, timeout=4.0)
     embed_ok = await _health_ok(EMBED_CPU_URL.replace("/api/embeddings", "/api/tags"), _shared_http_client)
 
