@@ -223,14 +223,13 @@ cleanup() {
         local idx_pid
         idx_pid=$(cat "$INDEXER_PID_FILE" 2>/dev/null || echo "")
         if [[ -n "$idx_pid" ]]; then
-            local kill_status
-            safe_kill_check "$idx_pid"
-            kill_status=$?
+            local kill_status=0
+            safe_kill_check "$idx_pid" || kill_status=$?
             if (( kill_status == 0 )); then
                 info "Limpieza: enviando SIGTERM al indexador (PID $idx_pid)…"
                 kill -TERM "$idx_pid" 2>/dev/null || true
             elif (( kill_status == 2 )); then
-                warn "Indexador (PID $idx_pid) existe pero pertenece a otro usuario — no se puede terminar"
+                warn "Indexador (PID $idx_pid) existe pero pertenece a otro usuario"
             fi
         fi
         rm -f "$INDEXER_PID_FILE"
@@ -241,28 +240,21 @@ cleanup() {
         local pid
         pid=$(cat "$PID_FILE" 2>/dev/null || echo "")
         if [[ -n "$pid" ]]; then
-            local kill_status
-            safe_kill_check "$pid"
-            kill_status=$?
+            local kill_status=0
+            safe_kill_check "$pid" || kill_status=$?
             if (( kill_status == 0 )); then
                 info "Limpieza: enviando SIGTERM al router V14 (PID $pid)…"
                 kill -TERM "$pid" 2>/dev/null || true
                 local wait_count=0
                 while kill -0 "$pid" 2>/dev/null && (( wait_count < 30 )); do
-                    if (( wait_count % 5 == 0 )); then
-                        info "  Esperando shutdown del router… (${wait_count}s/30s)"
-                    fi
                     sleep 1
                     (( wait_count++ ))
                 done
                 if kill -0 "$pid" 2>/dev/null; then
-                    warn "Router no terminó en 30s — forzando SIGKILL"
                     kill -9 "$pid" 2>/dev/null || true
-                else
-                    ok "Router V14 detenido correctamente (${wait_count}s)"
                 fi
             elif (( kill_status == 2 )); then
-                warn "Router (PID $pid) existe pero pertenece a otro usuario — no se puede terminar"
+                warn "Router (PID $pid) pertenece a otro usuario"
             fi
         fi
         rm -f "$PID_FILE"
@@ -719,26 +711,25 @@ fi
 section "5/7 — ChromaDB (:$PORT_CHROMADB)"
 ensure_container_stopped "chromadb"
 
+# Eliminamos variables inútiles y mapeamos directamente a /data
 docker run -d \
     --name chromadb \
     --network "$DOCKER_NET" \
     -p "${PORT_CHROMADB}:8000" \
-    -v chromadb_data:/chroma/chroma \
-    -e IS_PERSISTENT=TRUE \
-    -e PERSIST_DIRECTORY=/chroma/chroma \
+    -v chromadb_data:/data \
     -e ANONYMIZED_TELEMETRY=false \
     -e CHROMA_SERVER_LOG_LEVEL=warning \
     --restart unless-stopped \
     ghcr.io/chroma-core/chroma:latest
 
-info "Esperando que ChromaDB inicialice su API en localhost:${PORT_CHROMADB}..."
+info "Esperando que ChromaDB inicialice su API en 127.0.0.1:${PORT_CHROMADB}..."
 CHROMADB_READY=false
-MAX_RETRIES=15
+MAX_RETRIES=30
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    # Realizar petición de latido al puerto EXTERNO (8001)
-    CHROMA_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${PORT_CHROMADB}/api/v1/heartbeat" 2>/dev/null || echo "000")
+    # curl blindado contra proxys y errores fatales de bash
+    CHROMA_STATUS=$(curl --noproxy "*" -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${PORT_CHROMADB}/api/v1/heartbeat" || true)
     
     if [ "$CHROMA_STATUS" = "200" ]; then
         CHROMADB_READY=true
@@ -752,7 +743,7 @@ done
 if [ "$CHROMADB_READY" = true ]; then
     ok "ChromaDB listo y respondiendo en el puerto ${PORT_CHROMADB} ✔"
 else
-    warn "ChromaDB puerto abierto pero API no respondió tras ${MAX_RETRIES}s"
+    warn "ChromaDB puerto abierto pero API no respondió tras ${MAX_RETRIES}s (Estado: $CHROMA_STATUS)"
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -862,22 +853,27 @@ fi
 section "Indexación Vault Obsidian"
 
 if [[ -f "$VAULT_INDEXER" ]]; then
-    # Comprobar código de estado de Ollama CPU (asumiendo que guarda su estado en OLLAMA_CPU_STATUS)
-    OLLAMA_CPU_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${PORT_OLLAMA_CPU}/" 2>/dev/null || echo "000")
+    # Curl blindado
+    OLLAMA_CPU_STATUS=$(curl --noproxy "*" -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${PORT_OLLAMA_CPU}/" || true)
+
+    # Limpiar variables nulas por seguridad
+    if [[ "$CHROMA_STATUS" != "200" ]]; then CHROMA_STATUS="000"; fi
+    if [[ "$OLLAMA_CPU_STATUS" != "200" ]]; then OLLAMA_CPU_STATUS="000"; fi
 
     if [ "$CHROMA_STATUS" = "200" ] && [ "$OLLAMA_CPU_STATUS" = "200" ]; then
         ok "Motores validados. Iniciando indexación automática de la bóveda..."
+        # Le pasamos 127.0.0.1 al script de Python también por si acaso
         python3 "$VAULT_INDEXER" \
             --vault-dir "$VAULT_DIR" \
-            --chroma-url "http://localhost:${PORT_CHROMADB}" \
-            --ollama-embed-url "http://localhost:${PORT_OLLAMA_CPU}/api/embeddings" \
+            --chroma-url "http://127.0.0.1:${PORT_CHROMADB}" \
+            --ollama-embed-url "http://127.0.0.1:${PORT_OLLAMA_CPU}/api/embeddings" \
             --state-dir "$AGENT_DATA_DIR" \
             >> "$LOG_DIR/indexar_vault.log" 2>&1 &
         INDEXER_PID=$!
         echo "$INDEXER_PID" > "$INDEXER_PID_FILE"
         info "Indexador en background PID=$INDEXER_PID (log: $LOG_DIR/indexar_vault.log)"
     else
-        warn "Condiciones no cumplidas (Chroma HTTP: ${CHROMA_STATUS:-000} | Ollama CPU HTTP: $OLLAMA_CPU_STATUS)"
+        warn "Condiciones no cumplidas (Chroma: $CHROMA_STATUS | Ollama CPU: $OLLAMA_CPU_STATUS)"
         warn "Ejecuta manualmente: python3 $VAULT_INDEXER"
     fi
 else
@@ -919,12 +915,13 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 section "Router V14 (FastAPI + Agent :$PORT_ROUTER)"
 
-# Matar instancia previa si existe
+# Matar instancia previa si existe (Ahora blindado contra set -e)
 if [[ -f "$PID_FILE" ]]; then
     OLD_PID=$(cat "$PID_FILE" 2>/dev/null || echo "")
     if [[ -n "$OLD_PID" ]]; then
-        safe_kill_check "$OLD_PID"
-        case $? in
+        kill_status=0
+        safe_kill_check "$OLD_PID" || kill_status=$?
+        case $kill_status in
             0)
                 info "Deteniendo router anterior (PID $OLD_PID)…"
                 kill -TERM "$OLD_PID" 2>/dev/null || true
@@ -934,7 +931,7 @@ if [[ -f "$PID_FILE" ]]; then
                 fi
                 ;;
             2)
-                warn "Router anterior (PID $OLD_PID) pertenece a otro usuario — no se puede detener"
+                warn "Router anterior (PID $OLD_PID) pertenece a otro usuario"
                 ;;
         esac
     fi
