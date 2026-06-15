@@ -724,6 +724,8 @@ docker run -d \
     --network "$DOCKER_NET" \
     -p "${PORT_CHROMADB}:8000" \
     -v chromadb_data:/chroma/chroma \
+    -e IS_PERSISTENT=TRUE \
+    -e PERSIST_DIRECTORY=/chroma/chroma \
     -e ANONYMIZED_TELEMETRY=false \
     -e CHROMA_SERVER_LOG_LEVEL=warning \
     --restart unless-stopped \
@@ -735,7 +737,7 @@ MAX_RETRIES=15
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    # Realizar petición de latido a la API nativa de Chroma (con protección de errores)
+    # Realizar petición de latido al puerto EXTERNO (8001)
     CHROMA_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${PORT_CHROMADB}/api/v1/heartbeat" 2>/dev/null || echo "000")
     
     if [ "$CHROMA_STATUS" = "200" ]; then
