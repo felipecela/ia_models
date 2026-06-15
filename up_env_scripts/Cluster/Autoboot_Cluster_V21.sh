@@ -581,11 +581,10 @@ mkdir -p "${MODELS_DIR}/ollama-cpu" 2>/dev/null || true
 
 ensure_container_stopped "ollama-cpu-router"
 
-# 2. Forzar --gpus "" para aislar la VRAM y configurar almacenamiento separado
+# 2. Omitimos la bandera --gpus y usamos CUDA_VISIBLE_DEVICES="" para aislar la VRAM
 docker run -d \
     --name ollama-cpu-router \
     --network "$DOCKER_NET" \
-    --gpus "" \
     -p "${PORT_OLLAMA_CPU}:11434" \
     -e CUDA_VISIBLE_DEVICES="" \
     -e OLLAMA_MODELS=/models \
