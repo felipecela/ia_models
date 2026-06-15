@@ -18,6 +18,8 @@ No debes asumir que la versión actual es correcta por el hecho de funcionar apa
 
 Para proceder con las correcciones que detectes, entonces genera una version incremental, para el caso de los ficheros que vas a modificar, por ejemplo dejando los siguientes nombres en esta nueva entrega: Autoboot_Cluster_V20.sh, orchestrator_router_V13.py e indexar_vault_v5.py
 
+Es importante que consideres restructurar y refactorizar el codigo, para segmentar en otros ficheros, para mejorar en legibilidad y facilitar las futuras mejoras, pero sin llegar a repercutir y perjudicar el rendimiento de los modulos y peor aun de la aplicacion en general.
+
 Para llevar a cabo este proceso ejecuta el PLAN DE TRABAJO PARA EL DESARROLLO:
 
 ---
