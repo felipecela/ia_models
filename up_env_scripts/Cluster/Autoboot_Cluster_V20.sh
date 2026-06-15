@@ -61,18 +61,18 @@ section() { echo -e "\n${BLD}${CYN}═══════════════
 # [V20-C1] Router y indexador actualizados a V13/V5
 # [V18-A2] agent_data/ en ext4 para SQLite del agente autónomo
 # ─────────────────────────────────────────────────────────────────────────────
-AI_CORE="/mnt/ai_core"                          # SSD exFAT (compartido Win/Linux)
-AI_HOME="$HOME/ai_cluster"                      # ext4 — logs, chromadb, state
-MODELS_DIR="$AI_CORE/models"                    # pesos en exFAT
-VAULT_DIR="$AI_CORE/obsidian_vault"             # vault Obsidian en exFAT
-OBSIDIAN_APPDATA="$AI_HOME/obsidian_appdata"    # estado Obsidian en ext4
+AI_CORE="${AI_CORE:-/home/fcela-ga/sgoinfre/ai_core}"   # SSD exFAT (compartido Win/Linux)
+AI_HOME="$HOME/ai_cluster"                              # ext4 — logs, chromadb, state
+MODELS_DIR="$AI_CORE/models"                            # pesos en exFAT
+VAULT_DIR="$AI_CORE/obsidian_vault"                     # vault Obsidian en exFAT
+OBSIDIAN_APPDATA="$AI_HOME/obsidian_appdata"            # estado Obsidian en ext4
 ROUTER_SCRIPT="$AI_HOME/orchestrator_router_V13.py"
 VAULT_INDEXER="$AI_HOME/indexar_vault_v5.py"
-AGENT_DATA_DIR="$AI_HOME/agent_data"            # [V18-A2] SQLite del agente
+AGENT_DATA_DIR="$AI_HOME/agent_data"                    # [V18-A2] SQLite del agente
 LOG_DIR="$AI_HOME/logs"
 LOG_FILE="$LOG_DIR/autoboot_v20_$(date +%Y%m%d_%H%M%S).log"
-PID_FILE="$AI_HOME/router_v13.pid"             # [V20-C1] Actualizado para V13
-INDEXER_PID_FILE="$AI_HOME/indexer.pid"        # [V20-C14] PID del indexador
+PID_FILE="$AI_HOME/router_v13.pid"                     # [V20-C1] Actualizado para V13
+INDEXER_PID_FILE="$AI_HOME/indexer.pid"                # [V20-C14] PID del indexador
 SEARXNG_SECRET_FILE="$AI_HOME/.searxng_secret"
 SEARXNG_SETTINGS="$AI_HOME/searxng_settings.yml"
 
