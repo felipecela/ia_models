@@ -646,7 +646,7 @@ if [[ -d "$EXL2_CHAT" ]] || [[ -d "$EXL2_CODER" ]]; then
         -p "${PORT_TABBYAPI}:5000" \
         -v "${MODELS_DIR}:/models:ro" \
         --restart unless-stopped \
-        theroyallab/tabbyapi:latest \
+        ghcr.io/theroyallab/tabbyapi:latest \
         --model-dir /models \
         --model "llama-3.1-8b-exl2" \
         --max-seq-len 8192 \
