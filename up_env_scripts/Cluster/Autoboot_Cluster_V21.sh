@@ -143,6 +143,15 @@ wait_port() {
     return 0
 }
 
+# ─── Obtener HTTP Status de forma segura ─────────────────────────────────────
+get_http_status() {
+    local url="$1"
+    local code
+    # curl forzado a IPv4 (-4), sin proxy, max 3 segundos. Extraemos solo los últimos 3 dígitos.
+    code=$(curl -4 -s -m 3 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+    echo "${code: -3}"
+}
+
 # ─── [V21-B4] Verificar si un puerto está libre ─────────────────────────────
 check_port_free() {
     local port="$1" label="${2:-servicio}"
@@ -248,7 +257,7 @@ cleanup() {
                 local wait_count=0
                 while kill -0 "$pid" 2>/dev/null && (( wait_count < 30 )); do
                     sleep 1
-                    (( wait_count++ ))
+                    wait_count=$((wait_count + 1)) # SINTAXIS SEGURA
                 done
                 if kill -0 "$pid" 2>/dev/null; then
                     kill -9 "$pid" 2>/dev/null || true
@@ -728,8 +737,8 @@ MAX_RETRIES=30
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    # curl blindado contra proxys y errores fatales de bash
-    CHROMA_STATUS=$(curl --noproxy "*" -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${PORT_CHROMADB}/api/v1/heartbeat" || true)
+    # Usando el helper blindado
+    CHROMA_STATUS=$(get_http_status "http://127.0.0.1:${PORT_CHROMADB}/api/v1/heartbeat")
     
     if [ "$CHROMA_STATUS" = "200" ]; then
         CHROMADB_READY=true
@@ -853,8 +862,8 @@ fi
 section "Indexación Vault Obsidian"
 
 if [[ -f "$VAULT_INDEXER" ]]; then
-    # Curl blindado
-    OLLAMA_CPU_STATUS=$(curl --noproxy "*" -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${PORT_OLLAMA_CPU}/" || true)
+    # Usando el helper blindado
+    OLLAMA_CPU_STATUS=$(get_http_status "http://127.0.0.1:${PORT_OLLAMA_CPU}/")
 
     # Limpiar variables nulas por seguridad
     if [[ "$CHROMA_STATUS" != "200" ]]; then CHROMA_STATUS="000"; fi
@@ -993,7 +1002,7 @@ info "Router V14 lanzado — PID=$ROUTER_PID"
 ROUTER_READY=false
 HEALTH_ATTEMPTS=0
 for i in $(seq 1 $((TIMEOUT_ROUTER_HEALTH / 2))); do
-    (( HEALTH_ATTEMPTS++ ))
+    HEALTH_ATTEMPTS=$((HEALTH_ATTEMPTS + 1)) # SINTAXIS SEGURA (Evita el crash de set -e)
     if curl -sf "http://localhost:${PORT_ROUTER}/health" >/dev/null 2>&1; then
         ROUTER_READY=true
         break
