@@ -429,3 +429,129 @@ source ~/.zshrc
 ```
 
 Ahora ejecuta `docker_on`. Verás cómo el script crea la carpeta de montaje (en caso de que no exista), acopla el disco virtual, hace los enlaces y enciende el motor con total seguridad. Una vez que termine y diga `[OK]`, ejecuta tu alias `dinfo`. Si todo está correcto, deberías ver la tabla de `df` mostrándote los 80 GB flamantes listos para empezar a descargar el clúster.
+
+
+---
+
+
+Es una frustración matemática muy común cuando se trabaja con contenedores de Inteligencia Artificial pesados. A simple vista parece que los números no cuadran (29.5 GB ocupados es mucho menos que 80 GB), pero hay un "impuesto oculto" de Docker y de Linux que te ha dejado sin espacio en el peor momento posible.
+
+Aquí tienes la radiografía técnica de lo que está ocurriendo dentro de tu disco virtual y cómo solucionarlo definitivamente utilizando el espacio libre de tu SSD.
+
+### La Matemática Oculta (Por qué te quedaste sin espacio)
+
+**1. La Reserva de Seguridad de Linux (El 5% fantasma)**
+Al formatear cualquier disco en `ext4`, Linux reserva automáticamente un 5% del espacio para procesos críticos del usuario `root`, evitando que el sistema colapse si el disco se llena al 100%.
+
+* En tu disco de 80 GB, **4 GB son intocables**. Tu espacio real utilizable era de 76 GB.
+
+**2. El consumo actual**
+Como viste en tu terminal, `TabbyAPI` (21.2 GB) y `Ollama` (8.27 GB) ya están ocupando unos **29.5 GB**.
+
+* 76 GB (útiles) - 29.5 GB (usados) = **46.5 GB libres reales**.
+
+**3. El "Pico de Extracción" de SGLang**
+
+Aquí es donde ocurre el colapso. La imagen de SGLang es un auténtico monstruo: contiene internamente librerías gigantescas como NVIDIA CUDA 13.0, PyTorch precompilado y el motor vLLM.
+Cuando Docker descarga esta imagen, ocurre lo siguiente:
+
+1. Descarga las capas comprimidas (`.tar.gz`) en la subcarpeta `containerd` (ocupando unos 15-20 GB).
+2. Inmediatamente, empieza a extraerlas a su tamaño real en la carpeta `overlay2` (que serán unos 35 GB adicionales).
+3. **Durante esos minutos de extracción, Docker necesita albergar AMBAS cosas al mismo tiempo.** Necesita un pico de más de 50 GB de espacio libre de golpe.
+Como solo te quedaban 46.5 GB, la extracción de la librería de CUDA (`libnvJitLink_static.a`) chocó contra la pared.
+
+---
+
+### La Solución Definitiva (El disco de 150 GB optimizado)
+
+Tu log muestra un dato excelente: `Espacio en SSD exFAT: 350080MB libres`. Tienes unos 350 GB completamente ociosos. No hay ninguna necesidad de encorsetar tu entorno de desarrollo en 80 GB y sufrir cada vez que pruebes un modelo nuevo.
+
+Vamos a borrar el disco pequeño, crear uno holgado de **150 GB** y aplicaremos un truco de administración de sistemas (`-m 0`) para eliminar ese 5% de reserva inútil de Linux, dándote el 100% de los gigabytes reales.
+
+Abre tu terminal y ejecuta estos comandos uno a uno (tendrás que esperar a que el comando `dd` termine de escribir los 150 GB, puede tardar entre 5 y 10 minutos dependiendo de la velocidad de escritura de tu SSD a través de BitLocker):
+
+```bash
+# 1. Apagar los motores de forma segura para liberar el archivo
+docker_off
+
+# 2. Eliminar el disco virtual actual que se quedó corto
+rm /home/fcela-ga/sgoinfre/docker/containers_disk.img
+
+# 3. Crear el nuevo disco masivo de 150 GB (153600 Megabytes)
+dd if=/dev/zero of=/home/fcela-ga/sgoinfre/docker/containers_disk.img bs=1M count=153600 status=progress
+
+# 4. Formatear en ext4 ELIMINANDO la reserva del 5% (-m 0)
+sudo mkfs.ext4 -m 0 /home/fcela-ga/sgoinfre/docker/containers_disk.img
+
+# 5. Volver a acoplar y encender Docker
+docker_on
+
+```
+
+Una vez que termine, simplemente vuelve a ejecutar tu comando `ai_cluster`.
+
+Docker volverá a descargar rápidamente Ollama y TabbyAPI, y cuando llegue el turno de SGLang, el disco de 150 GB absorberá sin ningún problema el "pico de extracción" masivo de las librerías de NVIDIA, dejándote con una arquitectura robusta y lista para cualquier experimento de IA futuro en tu OMEN.
+
+
+---
+
+
+¡Totalmente! Y de hecho, esa es la pregunta exacta que haría un administrador de sistemas senior.
+
+Expandir un disco virtual "en caliente" (o *in-place*) no solo es posible, sino que es la práctica recomendada para no perder los 30 GB de modelos que ya tienes descargados y no tener que esperar a que `dd` escriba todo el archivo desde cero.
+
+El proceso consta de dos partes: primero agrandamos "la caja" física (el archivo `.img`), y luego le decimos al sistema de archivos de Linux que se expanda para ocupar el nuevo espacio vacío. Y lo mejor de todo: **toma menos de 10 segundos**.
+
+Si todavía conservas tu disco de 80 GB y no lo has borrado, aquí tienes el procedimiento exacto para inyectarle 70 GB extra y llegar a los 150 GB sin perder ni un solo byte de datos.
+
+### Pasos para Expandir el Disco Virtual
+
+Abre tu terminal y ejecuta estos comandos en orden:
+
+**1. Apagar Docker y desmontar el disco**
+Es vital que el disco no esté en uso mientras lo operamos.
+
+```bash
+docker_off
+
+```
+
+**2. Agrandar el archivo físico (La "Caja")**
+Usaremos el comando `truncate`, que es mágico. En lugar de escribir ceros uno a uno (como hace `dd`), `truncate` simplemente cambia el "metadato" del archivo para decirle al SSD exFAT que ahora mide 70 GB más. Esto es instantáneo.
+
+```bash
+truncate -s +70G /home/fcela-ga/sgoinfre/docker/containers_disk.img
+
+```
+
+**3. Comprobar la integridad del disco**
+Antes de expandir el formato interno, Linux nos obliga a pasarle un chequeo de seguridad rápido para asegurar que no hay sectores corruptos.
+
+```bash
+sudo e2fsck -f /home/fcela-ga/sgoinfre/docker/containers_disk.img
+
+```
+
+**4. Expandir el sistema de archivos interno**
+Ahora usamos la herramienta nativa de Linux para decirle al formato `ext4` que ocupe todo el nuevo espacio que le acaba de dar `truncate`.
+
+```bash
+sudo resize2fs /home/fcela-ga/sgoinfre/docker/containers_disk.img
+
+```
+
+**5. Volver a encender el clúster**
+¡Listo! Ya puedes volver a montar todo.
+
+```bash
+docker_on
+
+```
+
+---
+
+### Comprobación Final
+
+Una vez que hayas encendido Docker con `docker_on`, puedes usar tu alias `dinfo` (o ejecutar `df -h /mnt/ai_containers`).
+
+Verás que mágicamente tu disco ha pasado a tener 150 GB de capacidad total, Ollama y TabbyAPI seguirán ahí intactos, y tendrás espacio más que de sobra para que el monstruoso proceso de extracción de SGLang se complete sin volver a colapsar el sistema.
