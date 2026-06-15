@@ -334,3 +334,98 @@ docker_off() {
 Guarda el archivo, recarga la terminal (`source ~/.zshrc`), ejecuta `docker_on` y vuelve a lanzar tu clúster con `ai_cluster`.
 
 Ahora, SGLang, TabbyAPI y las enormes librerías de NVIDIA se descargarán pacíficamente dentro de tu SSD virtual de 80 GB. Tu disco principal de Ubuntu recuperará sus 20 GB libres y no volverá a sufrir problemas de espacio.
+
+
+---
+
+
+¡Excelente captura de este error! El log que muestras es oro puro porque revela dos detalles críticos sobre lo que acaba de pasar:
+
+1. **La carpeta puente desapareció (o se nombró distinto):** El comando `mount` en Linux necesita que la carpeta de destino exista físicamente antes de poder "enchufarle" un disco. Vemos que `dinfo` busca `/mnt/ai_containers`, pero tu `docker_on` intentó usar `/mnt/docker_containers`. Al no encontrar la carpeta exacta, el montaje falló.
+2. **⚠️ El peligro silencioso:** Como el montaje falló, el script continuó de largo y ejecutó `systemctl start docker`. Esto significa que en este instante, **Docker está encendido pero usando tu disco principal de Ubuntu**, lo que amenaza de nuevo tu espacio libre.
+
+Vamos a solucionar esto creando un script **a prueba de fallos**. Le enseñaremos a la función `docker_on` a crear las carpetas automáticamente si no existen, y a **abortar el arranque de Docker** si algo sale mal con el disco virtual.
+
+---
+
+### PASO 1: Apagar Docker Inmediatamente
+
+Para evitar que se descargue un solo megabyte en tu disco de Ubuntu, detén los motores manualmente ahora mismo en la terminal:
+
+```bash
+docker_off
+
+```
+
+### PASO 2: Hacer el Controlador "A Prueba de Balas"
+
+Vamos a blindar tus funciones en `~/.zshrc`. Abriremos el archivo y unificaremos todas las rutas bajo `/mnt/ai_containers`. Además, añadiremos los comandos `mkdir -p` internos y una cláusula de seguridad (`return 1`) que detendrá el script si el disco no se puede montar.
+
+Abre tu archivo `~/.zshrc`, busca el bloque de Docker y tu alias `dinfo`, y **reemplaza todo** por este código definitivo:
+
+```zsh
+# ─────────────────────────────────────────────────────────────────────────────
+# CONTROLADORES UNIVERSALES DE DOCKER (ENTORNO AISLADO 80GB)
+# ─────────────────────────────────────────────────────────────────────────────
+
+docker_on() {
+    # 0. ¡LA CLAVE! Asegurar que la carpeta puente de Linux siempre exista
+    sudo mkdir -p /mnt/ai_containers
+
+    if ! mountpoint -q /mnt/ai_containers; then
+        echo -e "\033[1;34m[DOCKER]\033[0m Montando disco virtual (80GB) desde sgoinfre..."
+        
+        # 1. Montar el disco maestro. Si falla, ABORTAR para proteger Ubuntu.
+        if ! sudo mount -o loop /home/fcela-ga/sgoinfre/docker/containers_disk.img /mnt/ai_containers; then
+            echo -e "\033[1;31m[ERROR]\033[0m No se pudo montar el disco virtual. Abortando arranque."
+            return 1
+        fi
+        
+        # 2. Crear las subcarpetas internas (dentro del disco virtual de 80GB)
+        sudo mkdir -p /mnt/ai_containers/docker
+        sudo mkdir -p /mnt/ai_containers/containerd
+        
+        # 3. Asegurar que las carpetas nativas de Ubuntu existan
+        sudo mkdir -p /var/lib/docker
+        sudo mkdir -p /var/lib/containerd
+        
+        # 4. Enlazar las carpetas del sistema hacia el disco virtual
+        sudo mount --bind /mnt/ai_containers/docker /var/lib/docker
+        sudo mount --bind /mnt/ai_containers/containerd /var/lib/containerd
+    fi
+    
+    echo -e "\033[1;34m[DOCKER]\033[0m Iniciando motores..."
+    sudo systemctl start containerd
+    sudo systemctl start docker
+    echo -e "\033[1;32m[OK]\033[0m Docker operativo y 100% aislado en el SSD."
+}
+
+docker_off() {
+    echo -e "\033[1;34m[DOCKER]\033[0m Deteniendo motores..."
+    sudo systemctl stop docker
+    sudo systemctl stop containerd
+    sudo systemctl stop docker.socket 2>/dev/null
+    
+    # Desmontar en orden inverso (primero los enlaces, luego el disco)
+    if mountpoint -q /var/lib/docker; then sudo umount /var/lib/docker; fi
+    if mountpoint -q /var/lib/containerd; then sudo umount /var/lib/containerd; fi
+    if mountpoint -q /mnt/ai_containers; then sudo umount /mnt/ai_containers; fi
+    
+    echo -e "\033[1;32m[OK]\033[0m Entorno cerrado y disco liberado."
+}
+
+# Alias para ver el estado del disco de 80GB
+alias dinfo='echo -e "\n\033[1;36m[ DISCO VIRTUAL (80GB) ]\033[0m" && df -h /mnt/ai_containers && echo -e "\n\033[1;36m[ DESGLOSE INTERNO ]\033[0m" && sudo du -sh /mnt/ai_containers/* 2>/dev/null && echo -e "\n\033[1;36m[ ESTADO DE DOCKER ]\033[0m" && sudo docker system df'
+
+```
+
+### PASO 3: Probar el blindaje
+
+Guarda el archivo y recarga la terminal:
+
+```zsh
+source ~/.zshrc
+
+```
+
+Ahora ejecuta `docker_on`. Verás cómo el script crea la carpeta de montaje (en caso de que no exista), acopla el disco virtual, hace los enlaces y enciende el motor con total seguridad. Una vez que termine y diga `[OK]`, ejecuta tu alias `dinfo`. Si todo está correcto, deberías ver la tabla de `df` mostrándote los 80 GB flamantes listos para empezar a descargar el clúster.
