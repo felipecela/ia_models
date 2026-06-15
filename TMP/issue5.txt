@@ -100,3 +100,16 @@ La versión resultante deberá identificarse como:
 
 El resultado final debe representar una versión corregida, fortalecida y totalmente integrada de la solución, sin anomalías conocidas, sin implementaciones incompletas, sin vulnerabilidades identificadas y con todos los módulos correctamente conectados y funcionando de forma coordinada dentro del entorno.
 
+
+--------------------------------------------------------------
+
+
+Realicé los dos PROMPT que te nombro a continuación como primero y después segundo, de manera independiente para realizar en dos partes totalmente aisladas este procedimiento, de primero investigar los errores y después en la segunda parte aplicar las mejoras, pero garantizando una correcta implementación sin que se produjeran regresiones o futuros errores.
+
+Ahora me gustaría juntar ambos prompts en uno solo, sin excluir detalles, y para ello necesito que me ayudes simplemente a juntarlos a nivel estructural y encadenarlos dandoles sentido en este proceso de trabajo creado en cada prompt y ahora en su conjunto, pero como indico, sin retirar detalles, para evitar excluir cuestiones pertinentes para su correcto desarrollo del proyecto.
+
+
+--------------------------------------------------------------
+
+
+
