@@ -731,13 +731,12 @@ docker run -d \
     --restart unless-stopped \
     ghcr.io/chroma-core/chroma:latest
 
-info "Esperando que ChromaDB inicialice su API en 127.0.0.1:${PORT_CHROMADB}..."
 CHROMADB_READY=false
-MAX_RETRIES=30
+MAX_RETRIES=60          # 60s total (ChromaDB puede tardar con índices HNSW grandes)
 RETRY_COUNT=0
+info "Esperando que ChromaDB inicialice su API HTTP en 127.0.0.1:${PORT_CHROMADB}..."
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    # Usando el helper blindado
     CHROMA_STATUS=$(get_http_status "http://127.0.0.1:${PORT_CHROMADB}/api/v1/heartbeat")
     
     if [ "$CHROMA_STATUS" = "200" ]; then
@@ -745,14 +744,21 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         break
     fi
     
+    # Si el contenedor murió, no seguir esperando
+    if ! docker ps --format '{{.Names}}' | grep -qx "chromadb"; then
+        err "Contenedor 'chromadb' ya no está en ejecución. Revisa: docker logs chromadb"
+        break
+    fi
+
     RETRY_COUNT=$((RETRY_COUNT + 1))
     sleep 1
 done
 
-if [ "$CHROMADB_READY" = true ]; then
-    ok "ChromaDB listo y respondiendo en el puerto ${PORT_CHROMADB} ✔"
+if [ "$CHROMADB_READY" = true ] || [ "$CHROMADB_READY" = "true" ]; then
+    ok "ChromaDB ✔ — API lista en ${RETRY_COUNT}s (puerto ${PORT_CHROMADB})"
 else
-    warn "ChromaDB puerto abierto pero API no respondió tras ${MAX_RETRIES}s (Estado: $CHROMA_STATUS)"
+    warn "ChromaDB API no respondió tras ${MAX_RETRIES}s (último estado: ${CHROMA_STATUS:-000})"
+    warn "Revisa: docker logs chromadb --tail 30"
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -862,8 +868,13 @@ fi
 section "Indexación Vault Obsidian"
 
 if [[ -f "$VAULT_INDEXER" ]]; then
-    # Usando el helper blindado
-    OLLAMA_CPU_STATUS=$(get_http_status "http://127.0.0.1:${PORT_OLLAMA_CPU}/")
+    # Usando el helper blindado (con retry breve)
+    OLLAMA_CPU_STATUS="000"
+    for _i in $(seq 1 10); do
+        OLLAMA_CPU_STATUS=$(get_http_status "http://127.0.0.1:${PORT_OLLAMA_CPU}/")
+        [ "$OLLAMA_CPU_STATUS" = "200" ] && break
+        sleep 2
+    done
 
     # Limpiar variables nulas por seguridad
     if [[ "$CHROMA_STATUS" != "200" ]]; then CHROMA_STATUS="000"; fi
@@ -1099,7 +1110,11 @@ check_service() {
 
 check_service "Ollama GPU (main)"       localhost "$PORT_OLLAMA_GPU"
 check_service "Ollama CPU (router/emb)" localhost "$PORT_OLLAMA_CPU"
-check_service "TabbAPI ExLlamaV2"       localhost "$PORT_TABBYAPI"
+if docker ps --format '{{.Names}}' | grep -qx "exllamav2-api"; then
+    check_service "TabbAPI ExLlamaV2"       localhost "$PORT_TABBYAPI"
+else
+    printf "%-30s %-12s %b\n" "TabbAPI ExLlamaV2" ":${PORT_TABBYAPI}" "${YEL}— modelos EXL2 no instalados${NC}"
+fi
 check_service "SGLang"                  localhost "$PORT_SGLANG"
 check_service "ChromaDB"                localhost "$PORT_CHROMADB"
 check_service "Obsidian Web UI"         localhost "$PORT_OBSIDIAN"
