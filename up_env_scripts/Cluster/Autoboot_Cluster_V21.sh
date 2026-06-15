@@ -728,6 +728,7 @@ docker run -d \
     -v chromadb_data:/data \
     -e ANONYMIZED_TELEMETRY=false \
     -e CHROMA_SERVER_LOG_LEVEL=warning \
+    -e CHROMA_SERVER_HOST=0.0.0.0 \
     --restart unless-stopped \
     ghcr.io/chroma-core/chroma:latest
 
