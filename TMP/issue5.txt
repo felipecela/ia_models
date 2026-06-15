@@ -109,7 +109,172 @@ Realicé los dos PROMPT que te nombro a continuación como primero y después se
 Ahora me gustaría juntar ambos prompts en uno solo, sin excluir detalles, y para ello necesito que me ayudes simplemente a juntarlos a nivel estructural y encadenarlos dandoles sentido en este proceso de trabajo creado en cada prompt y ahora en su conjunto, pero como indico, sin retirar detalles, para evitar excluir cuestiones pertinentes para su correcto desarrollo del proyecto.
 
 
+BASE:
+He analizado a partir de las características de mi equipo, un OMEN con 32 GB de RAM, procesador Ultra 7, modelo 255 y tarjeta de vídeo 4070 RTX de Nvidia para poder ejecutar con estas características los mejores modelos a nivel de razonamiento y cubrir diferentes tipos de tareas de manera específica, teniendo desde modelos bastante complejos a nivel de razonamiento hasta modelos más simples para los casos más prácticos en donde no se requiera exceder en el uso de los recursos del sistema. El principal desarrollo que he hecho es el script de Autoboot_Cluster_V10 en donde se monta OpenClaw para poder orquestar con la ayuda del script de Python Orquestator Router los modelos locales y de esta manera, la idea final que se estableció mediante el análisis que también te comparto es escoger el modelo PHI de Microsoft para poder realizar la adquisición de los datos en una primera instancia por parte de OpenClaw y este modelo finalmente va a derivar a SgLang para correr un modelo aquí y si no, entonces va a lanzar ollama para correr otro modelo en este otro motor, dependiendo del nivel de razonamiento que requiera y por lo tanto, derivando a una capa más compleja o más simple de razonamiento.
+
+Como información adicional, te explico que los modelos se están almacenando en un disco duro SSD que tengo compartido entre mis dos sistemas operativos, Windows y Linux, el cual se encuentra en formato exFAT. Por ese motivo, hay ciertas características que no se han podido utilizar y se ha adecuado la ejecución de los comandos para poder soportar las características de este tipo de formato.
+
+
+OBJETIVO:
+Principalmente necesito que me ayudes desarrollando como una nueva característica de esta versión una funcionalidad que envuelva la capa actual de razonamiento hard, el cual está compuesto por varias etapas para probar la salida de respuesta de diferentes modelos de razonamiento profundo y finalmente merger esas respuestas mediante otra capa de razonamiento, teniendo así un razonamiento bastante completo, de manera que todo este ciclo generado, necesito que lo tomes para realizar varias iteraciones en donde este nuevo agente, entonces, actúe de manera autónoma para poder desarrollar una determinada tarea que se le delegue y entonces parta analizando primero el prompt que se le genera para después generar un diseño con una planificación estructurada de tareas, derivando a una versión... completa, organizada y, por lo tanto, ayudando a complementar lo que de base se le presente para poder armar un mejor prompt para la tarea o el proyecto especificado. y después de esta etapa de diseño y planificación, entonces va a pasar a realizar una nueva etapa de desarrollo, la cual entonces deberá de complementar al 100% con toda la parte de diseño y planificación especificada anteriormente para finalmente ejecutar una etapa final de pruebas, realizando pruebas generales y específicas para el desarrollo finalmente realizado en la etapa anterior. y en caso de que, por ejemplo, el prompt se tenga que descomponer en varias subetapas o definir entonces varias tareas en caso de un proyecto, pues debería de generar tantas iteraciones como sean necesarias de este agente de versión de razonamiento hard profunda para poder ejecutar las diferentes tareas y irlas desarrollando paso a paso. Mientras que las va desarrollando, va realizando una nueva prueba y así sucesivamente. Puede también agregar más etapas, igual que las iniciales, de diseño, planificación, desarrollo, pruebas, etcétera, para seguir en caso de, por ejemplo, un proyecto con una metodología enfocada, por ejemplo, a DevOps, en donde se desgranen los prompts finalmente, por eso, en diferentes subtareas con la finalidad de que el desarrollo concluyente sea lo más completo y contundente posible, realizando, por lo tanto, un trabajo equivalente al que tú mismo realizas.
+
+
 --------------------------------------------------------------
 
 
+Tu planteamiento tiene mucho sentido porque, en realidad, el segundo prompt depende completamente del primero. Lo que estás buscando no es una simple concatenación, sino la definición de un **ciclo completo de auditoría → corrección → revalidación → consolidación**, integrado dentro de la nueva arquitectura de razonamiento profundo que quieres incorporar al proyecto.
+
+La mejor forma de unirlos es convertir el primer prompt en la **Fase 1 (Auditoría Integral)** y el segundo en la **Fase 2 (Implementación Correctiva y Consolidación)**, manteniendo además la información de contexto (BASE) y el objetivo evolutivo del proyecto como marco general del trabajo.
+
+# Contexto General del Proyecto
+
+He analizado las capacidades de mi equipo, compuesto por un portátil OMEN con 32 GB de RAM, procesador Intel Ultra 7 255 y tarjeta gráfica NVIDIA RTX 4070, con el objetivo de ejecutar localmente modelos de inteligencia artificial especializados en diferentes niveles de razonamiento, optimizando el equilibrio entre capacidad analítica, rendimiento y consumo de recursos.
+
+Como resultado de este análisis, he desarrollado principalmente el sistema Autoboot_Cluster_V10 junto con OpenClaw y un Orquestator Router implementado en Python. La arquitectura actual tiene como finalidad orquestar distintos modelos locales mediante una capa inteligente de enrutamiento.
+
+El flujo general consiste en que OpenClaw recibe inicialmente las solicitudes y utiliza un modelo PHI de Microsoft como capa inicial de análisis. Posteriormente, en función del nivel de razonamiento requerido, la petición es derivada dinámicamente hacia SGLang u Ollama para ejecutar el modelo más adecuado según la complejidad de la tarea.
+
+Adicionalmente, todos los modelos se almacenan en una unidad SSD compartida entre Windows y Linux utilizando formato exFAT. Debido a las limitaciones inherentes a este sistema de archivos, se han realizado diversas adaptaciones técnicas para garantizar la compatibilidad y el correcto funcionamiento de toda la infraestructura.
+
+# Objetivo Evolutivo de la Nueva Versión
+
+Necesito incorporar una nueva capa avanzada de razonamiento autónomo que envuelva la actual estrategia de Hard Reasoning.
+
+Actualmente, la estrategia Hard Reasoning se basa en la ejecución de varios modelos de razonamiento profundo, cuyas respuestas son posteriormente fusionadas mediante una capa adicional encargada de consolidar las conclusiones obtenidas.
+
+La nueva funcionalidad deberá extender este concepto para crear un agente autónomo capaz de:
+
+1. Analizar inicialmente cualquier prompt o tarea recibida.
+2. Diseñar automáticamente un plan estructurado de trabajo.
+3. Descomponer proyectos complejos en subtareas.
+4. Generar iteraciones de trabajo autónomas.
+5. Ejecutar ciclos sucesivos de diseño, planificación, desarrollo, validación y pruebas.
+6. Realizar verificaciones continuas después de cada iteración.
+7. Detectar automáticamente problemas, dependencias o mejoras pendientes.
+8. Volver a planificar y continuar iterando cuando sea necesario.
+9. Aplicar metodologías de trabajo similares a entornos DevOps para proyectos complejos.
+10. Obtener resultados significativamente más completos, robustos y precisos que los obtenidos mediante una única ejecución de razonamiento.
+
+Este agente deberá actuar como una capa superior de razonamiento capaz de coordinar múltiples ciclos de análisis y desarrollo hasta alcanzar un resultado final consolidado.
+
+Adjunto el fichero issue5.1.txt que contiene el PLAN DE TRABAJO PARA EL DESARROLLO que debes de realizar para resolver este proyecto, siendo esta la minima parte aceptable para su finalizacion y pudiendo agregar por tu parte mas capas de mejora/precicion
+
+
+# PLAN DE TRABAJO PARA EL DESARROLLO
+
+# Fase 1 – Auditoría Técnica Integral
+
+He desarrollado la aplicación que te adjunto a través de múltiples ciclos de evolución, incorporando progresivamente nuevas funcionalidades y mejoras hasta alcanzar la versión actual del sistema.
+
+Tomando como referencia tanto los requisitos funcionales definidos como el objetivo evolutivo descrito anteriormente, necesito que realices una auditoría técnica integral de toda la solución implementada.
+
+La auditoría deberá incluir una revisión profunda de:
+
+* Arquitectura general del sistema.
+* Diseño del Autoboot.
+* Diseño del Orquestador.
+* Integración entre OpenClaw, SGLang y Ollama.
+* Flujo de razonamiento y enrutamiento de modelos.
+* Gestión de recursos hardware.
+* Compatibilidad con almacenamiento exFAT compartido.
+* Automatizaciones implementadas.
+* Escalabilidad futura.
+* Mantenibilidad.
+* Seguridad.
+* Rendimiento.
+* Fiabilidad operativa.
+
+Necesito que determines si existen:
+
+* Errores de diseño.
+* Problemas de integración.
+* Inconsistencias lógicas.
+* Cuellos de botella.
+* Vulnerabilidades de seguridad.
+* Condiciones de carrera.
+* Dependencias mal gestionadas.
+* Automatizaciones incompletas.
+* Riesgos de regresión.
+* Problemas de compatibilidad.
+* Casos límite no contemplados.
+* Defectos ocultos.
+* Puntos únicos de fallo.
+* Debilidades arquitectónicas.
+
+Asimismo, deberás verificar:
+
+* Correctitud del razonamiento implementado.
+* Robustez de los flujos de ejecución.
+* Eficiencia de los mecanismos de orquestación.
+* Estabilidad ante fallos.
+* Recuperación ante errores.
+* Calidad general del código.
+* Calidad de las decisiones arquitectónicas.
+* Fiabilidad en escenarios reales.
+
+No debes limitarte a validar lo que funciona correctamente. Necesito que busques activamente problemas potenciales, escenarios adversos y oportunidades de mejora.
+
+Como resultado de esta fase deberás generar una auditoría completa que incluya:
+
+* Elementos correctamente implementados.
+* Problemas detectados.
+* Impacto y gravedad de cada hallazgo.
+* Riesgos asociados.
+* Recomendaciones técnicas.
+* Acciones prioritarias.
+* Plan detallado de corrección.
+
+# Fase 2 – Implementación Integral de Mejoras
+
+Una vez finalizada la auditoría anterior, deberás utilizar todos los hallazgos obtenidos para realizar la implementación integral de las correcciones y mejoras necesarias.
+
+No debes limitarte únicamente a aplicar las recomendaciones identificadas. También deberás analizar el impacto global de cada modificación sobre el resto del sistema y realizar cualquier ajuste adicional que sea necesario para mantener la coherencia arquitectónica completa.
+
+Durante esta fase deberás garantizar:
+
+* Corrección de todos los hallazgos identificados.
+* Eliminación de vulnerabilidades.
+* Corrección de errores lógicos.
+* Resolución de problemas de integración.
+* Consolidación de dependencias.
+* Compatibilidad con funcionalidades existentes.
+* Ausencia de regresiones.
+* Mejora de estabilidad.
+* Mejora de resiliencia.
+* Mejora de rendimiento.
+* Mejora de mantenibilidad.
+* Mejora de automatización.
+* Coherencia entre todos los módulos.
+
+Si durante la implementación aparecen:
+
+* Nuevas dependencias.
+* Efectos colaterales.
+* Riesgos de regresión.
+* Inconsistencias arquitectónicas.
+* Problemas derivados de las correcciones.
+
+Deberás resolverlos igualmente aunque no hayan sido identificados inicialmente durante la auditoría.
+
+# Fase 3 – Revalidación Completa
+
+Tras aplicar todas las mejoras, deberás ejecutar nuevamente una auditoría completa sobre la versión corregida para verificar que:
+
+* Todos los problemas han sido solucionados.
+* No se han introducido nuevas vulnerabilidades.
+* No existen regresiones funcionales.
+* La nueva capa de razonamiento autónomo se integra correctamente.
+* El sistema mantiene estabilidad y coherencia global.
+* Todas las funcionalidades continúan operativas.
+
+# Resultado Final Esperado
+
+Como resultado del proceso completo deberás generar una nueva versión consolidada del entorno identificada como:
+
+* Autoboot V18.
+* Orquestador V11 (si las modificaciones necesarias afectan a dicho componente).
+
+La versión final deberá representar una solución completamente auditada, corregida, revalidada y fortalecida, incorporando la nueva capa avanzada de razonamiento autónomo y garantizando el máximo nivel posible de estabilidad, seguridad, robustez, mantenibilidad, automatización, rendimiento y coherencia arquitectónica.
+
+Esta estructura es más potente que simplemente pegar ambos prompts, porque transforma el trabajo en un flujo de ingeniería completo: **Contexto → Objetivo Evolutivo → Auditoría → Corrección → Revalidación → Entrega Final**, que es exactamente el proceso que seguiría un equipo de arquitectura o DevOps para evolucionar una plataforma compleja sin introducir regresiones.
 
