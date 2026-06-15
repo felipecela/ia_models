@@ -147,8 +147,8 @@ wait_port() {
 get_http_status() {
     local url="$1"
     local code
-    # curl forzado a IPv4 (-4), sin proxy, max 3 segundos. Extraemos solo los últimos 3 dígitos.
-    code=$(curl -4 -s -m 3 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+    # curl forzado a IPv4, SIN PROXY, max 3 segundos.
+    code=$(curl -4 --noproxy "*" -s -m 3 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
     echo "${code: -3}"
 }
 
@@ -217,60 +217,60 @@ safe_kill_check() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TRAP EXIT — Graceful shutdown
+# TRAP EXIT — Graceful shutdown (Solo en caso de error)
 # ═══════════════════════════════════════════════════════════════════════════════
 cleanup() {
     local exit_code="$?"
 
-    # Limpiar watchdog si está corriendo
-    if [[ -n "${WATCHDOG_PID:-}" ]] && kill -0 "$WATCHDOG_PID" 2>/dev/null; then
-        kill -TERM "$WATCHDOG_PID" 2>/dev/null || true
-    fi
-
-    # Limpiar indexador si está corriendo
-    if [[ -f "$INDEXER_PID_FILE" ]]; then
-        local idx_pid
-        idx_pid=$(cat "$INDEXER_PID_FILE" 2>/dev/null || echo "")
-        if [[ -n "$idx_pid" ]]; then
-            local kill_status=0
-            safe_kill_check "$idx_pid" || kill_status=$?
-            if (( kill_status == 0 )); then
-                info "Limpieza: enviando SIGTERM al indexador (PID $idx_pid)…"
-                kill -TERM "$idx_pid" 2>/dev/null || true
-            elif (( kill_status == 2 )); then
-                warn "Indexador (PID $idx_pid) existe pero pertenece a otro usuario"
-            fi
-        fi
-        rm -f "$INDEXER_PID_FILE"
-    fi
-
-    # Limpiar router
-    if [[ -f "$PID_FILE" ]]; then
-        local pid
-        pid=$(cat "$PID_FILE" 2>/dev/null || echo "")
-        if [[ -n "$pid" ]]; then
-            local kill_status=0
-            safe_kill_check "$pid" || kill_status=$?
-            if (( kill_status == 0 )); then
-                info "Limpieza: enviando SIGTERM al router V14 (PID $pid)…"
-                kill -TERM "$pid" 2>/dev/null || true
-                local wait_count=0
-                while kill -0 "$pid" 2>/dev/null && (( wait_count < 30 )); do
-                    sleep 1
-                    wait_count=$((wait_count + 1)) # SINTAXIS SEGURA
-                done
-                if kill -0 "$pid" 2>/dev/null; then
-                    kill -9 "$pid" 2>/dev/null || true
-                fi
-            elif (( kill_status == 2 )); then
-                warn "Router (PID $pid) pertenece a otro usuario"
-            fi
-        fi
-        rm -f "$PID_FILE"
-    fi
-
+    # SOLO matar procesos si el script terminó por un ERROR
     if [[ "$exit_code" -ne 0 ]]; then
-        err "Script terminó con código $exit_code. Log en: $LOG_FILE"
+        warn "Se detectó un error (código $exit_code). Ejecutando limpieza de emergencia..."
+        
+        # Limpiar watchdog si está corriendo
+        if [[ -n "${WATCHDOG_PID:-}" ]] && kill -0 "$WATCHDOG_PID" 2>/dev/null; then
+            kill -TERM "$WATCHDOG_PID" 2>/dev/null || true
+        fi
+
+        # Limpiar indexador si está corriendo
+        if [[ -f "$INDEXER_PID_FILE" ]]; then
+            local idx_pid
+            idx_pid=$(cat "$INDEXER_PID_FILE" 2>/dev/null || echo "")
+            if [[ -n "$idx_pid" ]]; then
+                local kill_status=0
+                safe_kill_check "$idx_pid" || kill_status=$?
+                if (( kill_status == 0 )); then
+                    info "Limpieza: enviando SIGTERM al indexador (PID $idx_pid)…"
+                    kill -TERM "$idx_pid" 2>/dev/null || true
+                fi
+            fi
+            rm -f "$INDEXER_PID_FILE"
+        fi
+
+        # Limpiar router
+        if [[ -f "$PID_FILE" ]]; then
+            local pid
+            pid=$(cat "$PID_FILE" 2>/dev/null || echo "")
+            if [[ -n "$pid" ]]; then
+                local kill_status=0
+                safe_kill_check "$pid" || kill_status=$?
+                if (( kill_status == 0 )); then
+                    info "Limpieza: enviando SIGTERM al router V14 (PID $pid)…"
+                    kill -TERM "$pid" 2>/dev/null || true
+                    local wait_count=0
+                    while kill -0 "$pid" 2>/dev/null && (( wait_count < 30 )); do
+                        sleep 1
+                        wait_count=$((wait_count + 1))
+                    done
+                    if kill -0 "$pid" 2>/dev/null; then
+                        kill -9 "$pid" 2>/dev/null || true
+                    fi
+                fi
+            fi
+            rm -f "$PID_FILE"
+        fi
+        err "Script abortado. Log en: $LOG_FILE"
+    else
+        ok "Autoboot finalizado. Todos los servicios quedan operando en background."
     fi
 }
 trap cleanup EXIT
