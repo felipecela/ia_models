@@ -532,14 +532,21 @@ fi
 # 1. OLLAMA GPU (:11434)
 # ═══════════════════════════════════════════════════════════════════════════════
 section "1/7 — Ollama GPU (:$PORT_OLLAMA_GPU)"
+
+# 1. PRE-CREAR el directorio antes para evitar el error 'chown' del demonio de Docker
+mkdir -p "${MODELS_DIR}/ollama" 2>/dev/null || true
+
 ensure_container_stopped "ollama-gpu-main"
 
+# 2. SEPARAR el estado interno (ext4 en Docker) de los pesos (.gguf en exFAT)
 docker run -d \
     --name ollama-gpu-main \
     --network "$DOCKER_NET" \
     --gpus all \
     -p "${PORT_OLLAMA_GPU}:11434" \
-    -v "${MODELS_DIR}/ollama:/root/.ollama" \
+    -e OLLAMA_MODELS=/models \
+    -v "${MODELS_DIR}/ollama:/models" \
+    -v ollama_gpu_data:/root/.ollama \
     -e OLLAMA_KEEP_ALIVE=24h \
     -e OLLAMA_MAX_LOADED_MODELS=1 \
     -e OLLAMA_FLASH_ATTENTION=1 \
@@ -568,13 +575,22 @@ ok "Ollama GPU ✔ (${#GPU_PULL_PIDS[@]} pulls en background)"
 # 2. OLLAMA CPU (:11435)
 # ═══════════════════════════════════════════════════════════════════════════════
 section "2/7 — Ollama CPU (:$PORT_OLLAMA_CPU)"
+
+# 1. PRE-CREAR el directorio
+mkdir -p "${MODELS_DIR}/ollama-cpu" 2>/dev/null || true
+
 ensure_container_stopped "ollama-cpu-router"
 
+# 2. Forzar --gpus "" para aislar la VRAM y configurar almacenamiento separado
 docker run -d \
     --name ollama-cpu-router \
     --network "$DOCKER_NET" \
+    --gpus "" \
     -p "${PORT_OLLAMA_CPU}:11434" \
-    -v "${MODELS_DIR}/ollama-cpu:/root/.ollama" \
+    -e CUDA_VISIBLE_DEVICES="" \
+    -e OLLAMA_MODELS=/models \
+    -v "${MODELS_DIR}/ollama-cpu:/models" \
+    -v ollama_cpu_data:/root/.ollama \
     -e OLLAMA_KEEP_ALIVE=24h \
     -e OLLAMA_MAX_LOADED_MODELS=2 \
     -e OLLAMA_NUM_PARALLEL=1 \
