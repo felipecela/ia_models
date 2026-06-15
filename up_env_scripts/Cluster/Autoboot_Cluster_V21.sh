@@ -729,14 +729,28 @@ docker run -d \
     --restart unless-stopped \
     ghcr.io/chroma-core/chroma:latest
 
-if wait_port "ChromaDB" localhost "$PORT_CHROMADB" "$TIMEOUT_CHROMADB"; then
-    if curl -sf "http://localhost:${PORT_CHROMADB}/api/v1/heartbeat" >/dev/null 2>&1; then
-        ok "ChromaDB API ✔"
-    else
-        warn "ChromaDB puerto abierto pero API no responde"
+info "Esperando que ChromaDB inicialice su API en localhost:${PORT_CHROMADB}..."
+CHROMADB_READY=false
+MAX_RETRIES=15
+RETRY_COUNT=0
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    # Realizar petición de latido a la API nativa de Chroma (con protección de errores)
+    CHROMA_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${PORT_CHROMADB}/api/v1/heartbeat" 2>/dev/null || echo "000")
+    
+    if [ "$CHROMA_STATUS" = "200" ]; then
+        CHROMADB_READY=true
+        break
     fi
+    
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    sleep 1
+done
+
+if [ "$CHROMADB_READY" = true ]; then
+    ok "ChromaDB listo y respondiendo en el puerto ${PORT_CHROMADB} ✔"
 else
-    warn "ChromaDB no respondió — RAG desactivado"
+    warn "ChromaDB puerto abierto pero API no respondió tras ${MAX_RETRIES}s"
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -846,28 +860,22 @@ fi
 section "Indexación Vault Obsidian"
 
 if [[ -f "$VAULT_INDEXER" ]]; then
-    CHROMA_HTTP_CODE=$(curl -so /dev/null -w "%{http_code}" "http://localhost:${PORT_CHROMADB}/api/v1/heartbeat" 2>/dev/null || echo "000")
-    OLLAMA_CPU_HTTP_CODE=$(curl -so /dev/null -w "%{http_code}" "http://localhost:${PORT_OLLAMA_CPU}/api/tags" 2>/dev/null || echo "000")
+    # Comprobar código de estado de Ollama CPU (asumiendo que guarda su estado en OLLAMA_CPU_STATUS)
+    OLLAMA_CPU_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${PORT_OLLAMA_CPU}/" 2>/dev/null || echo "000")
 
-    if [[ ( "$CHROMA_HTTP_CODE" == "200" || "$CHROMA_HTTP_CODE" == "410" || "$CHROMA_HTTP_CODE" == "404" ) && "$OLLAMA_CPU_HTTP_CODE" == "200" ]]; then
-        EMBED_MODEL_READY=$(docker exec ollama-cpu-router ollama list 2>/dev/null | grep -c "nomic-embed-text" || echo "0")
-        if (( EMBED_MODEL_READY > 0 )); then
-            info "Lanzando indexación incremental del vault (V6)…"
-            python3 "$VAULT_INDEXER" \
-                --vault-dir "$VAULT_DIR" \
-                --chroma-url "http://localhost:${PORT_CHROMADB}" \
-                --ollama-embed-url "http://localhost:${PORT_OLLAMA_CPU}/api/embeddings" \
-                --state-dir "$AGENT_DATA_DIR" \
-                >> "$LOG_DIR/indexar_vault.log" 2>&1 &
-            INDEXER_PID=$!
-            echo "$INDEXER_PID" > "$INDEXER_PID_FILE"
-            info "Indexador en background PID=$INDEXER_PID (log: $LOG_DIR/indexar_vault.log)"
-        else
-            warn "Modelo nomic-embed-text no disponible en Ollama CPU — indexación omitida"
-            warn "Ejecuta: docker exec ollama-cpu-router ollama pull nomic-embed-text"
-        fi
+    if [ "$CHROMA_STATUS" = "200" ] && [ "$OLLAMA_CPU_STATUS" = "200" ]; then
+        ok "Motores validados. Iniciando indexación automática de la bóveda..."
+        python3 "$VAULT_INDEXER" \
+            --vault-dir "$VAULT_DIR" \
+            --chroma-url "http://localhost:${PORT_CHROMADB}" \
+            --ollama-embed-url "http://localhost:${PORT_OLLAMA_CPU}/api/embeddings" \
+            --state-dir "$AGENT_DATA_DIR" \
+            >> "$LOG_DIR/indexar_vault.log" 2>&1 &
+        INDEXER_PID=$!
+        echo "$INDEXER_PID" > "$INDEXER_PID_FILE"
+        info "Indexador en background PID=$INDEXER_PID (log: $LOG_DIR/indexar_vault.log)"
     else
-        warn "ChromaDB ($CHROMA_HTTP_CODE) u Ollama CPU ($OLLAMA_CPU_HTTP_CODE) no listo — indexación omitida"
+        warn "Condiciones no cumplidas (Chroma HTTP: ${CHROMA_STATUS:-000} | Ollama CPU HTTP: $OLLAMA_CPU_STATUS)"
         warn "Ejecuta manualmente: python3 $VAULT_INDEXER"
     fi
 else
