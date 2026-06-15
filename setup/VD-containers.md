@@ -228,3 +228,109 @@ source ~/.zshrc
 ```
 
 Con este último retoque, tu arquitectura queda impecable, modular y nombrada con precisión.
+
+
+---
+
+
+Este error es un clásico cuando se empieza a trabajar con contenedores de Inteligencia Artificial avanzada (como SGLang o TabbyAPI). Has chocado contra dos límites físicos y arquitectónicos simultáneamente, pero la solución es muy limpia.
+
+### El Diagnóstico del Error
+
+El mensaje dice:
+`write /var/lib/containerd/.../libcudnn_engines_precompiled.so... : no space left on device` (No queda espacio en el dispositivo).
+
+Han ocurrido dos cosas:
+
+1. **La trampa de `containerd`:** Las versiones modernas de Docker utilizan un motor interno llamado `containerd` para gestionar las descargas. En el paso anterior aislamos la carpeta `/var/lib/docker` (donde se guardan las capas finales), pero olvidamos aislar `/var/lib/containerd` (donde se descargan y descomprimen temporalmente). Como resultado, la descarga masiva se fue a tu disco principal de Ubuntu y se comió los 20 GB que te quedaban libres.
+2. **El peso de los gigantes:** Contenedores como SGLang o TabbyAPI no son programas normales; llevan incrustado todo el ecosistema de NVIDIA CUDA, librerías precompiladas de C++ y PyTorch. Solo el contenedor de SGLang puede pesar más de 15 GB al descomprimirse. Nuestro disco virtual de 30 GB se iba a quedar muy pequeño de todas formas.
+
+### La Solución Definitiva (El "Bind Mount")
+
+Como tienes más de 400 GB libres en tu SSD exFAT, vamos a crear un disco virtual más grande (80 GB) y vamos a usar una técnica de Linux llamada `bind mount` para que **tanto Docker como Containerd** vivan dentro de ese disco.
+
+Sigue estos 4 pasos en tu terminal:
+
+#### 1. Detener todo y limpiar el atasco
+
+Primero apagamos los motores y borramos los archivos a medio descargar que han saturado tu partición de Ubuntu:
+
+```bash
+sudo systemctl stop docker
+sudo systemctl stop containerd
+sudo umount /var/lib/docker 2>/dev/null
+sudo rm -rf /var/lib/containerd/*
+
+```
+
+#### 2. Crear el nuevo Disco Virtual de 80 GB
+
+Vamos a borrar el de 30 GB y a crear uno de 80 GB (tardará unos 3-5 minutos en crearse, verás el progreso).
+
+```bash
+rm /home/fcela-ga/sgoinfre/docker/containers_disk.img
+dd if=/dev/zero of=/home/fcela-ga/sgoinfre/docker/containers_disk.img bs=1M count=81920 status=progress
+sudo mkfs.ext4 /home/fcela-ga/sgoinfre/docker/containers_disk.img
+
+```
+
+#### 3. Preparar el punto de anclaje maestro
+
+En lugar de montar el disco directamente sobre Docker, lo montaremos en una carpeta puente y desde ahí repartiremos el espacio:
+
+```bash
+sudo mkdir -p /mnt/docker_containers
+
+```
+
+#### 4. Actualizar tus controladores en `~/.zshrc`
+
+Abre tu archivo `~/.zshrc` y reemplaza por completo tus funciones `docker_on` y `docker_off` con estas nuevas versiones. Estas funciones se encargarán de hacer los "Bind Mounts" mágicos de forma automática:
+
+```zsh
+# ─────────────────────────────────────────────────────────────────────────────
+# CONTROLADORES UNIVERSALES DE DOCKER (ENTORNO AISLADO 80GB)
+# ─────────────────────────────────────────────────────────────────────────────
+
+docker_on() {
+    if ! mountpoint -q /mnt/docker_containers; then
+        echo -e "\033[1;34m[DOCKER]\033[0m Montando disco virtual (80GB) desde sgoinfre..."
+        # 1. Montar el disco maestro
+        sudo mount -o loop /home/fcela-ga/sgoinfre/docker/containers_disk.img /mnt/docker_containers
+        
+        # 2. Crear las subcarpetas internas si no existen
+        sudo mkdir -p /mnt/docker_containers/docker
+        sudo mkdir -p /mnt/docker_containers/containerd
+        
+        # 3. Enlazar las carpetas del sistema hacia el disco virtual
+        sudo mount --bind /mnt/docker_containers/docker /var/lib/docker
+        sudo mount --bind /mnt/docker_containers/containerd /var/lib/containerd
+    fi
+    
+    echo -e "\033[1;34m[DOCKER]\033[0m Iniciando motores..."
+    sudo systemctl start containerd
+    sudo systemctl start docker
+    echo -e "\033[1;32m[OK]\033[0m Docker operativo y 100% aislado en el SSD."
+}
+
+docker_off() {
+    echo -e "\033[1;34m[DOCKER]\033[0m Deteniendo motores..."
+    sudo systemctl stop docker
+    sudo systemctl stop containerd
+    sudo systemctl stop docker.socket 2>/dev/null
+    
+    # Desmontar en orden inverso (primero los enlaces, luego el disco)
+    if mountpoint -q /var/lib/docker; then sudo umount /var/lib/docker; fi
+    if mountpoint -q /var/lib/containerd; then sudo umount /var/lib/containerd; fi
+    if mountpoint -q /mnt/docker_containers; then sudo umount /mnt/docker_containers; fi
+    
+    echo -e "\033[1;32m[OK]\033[0m Entorno cerrado y disco liberado."
+}
+
+```
+
+### El resultado final
+
+Guarda el archivo, recarga la terminal (`source ~/.zshrc`), ejecuta `docker_on` y vuelve a lanzar tu clúster con `ai_cluster`.
+
+Ahora, SGLang, TabbyAPI y las enormes librerías de NVIDIA se descargarán pacíficamente dentro de tu SSD virtual de 80 GB. Tu disco principal de Ubuntu recuperará sus 20 GB libres y no volverá a sufrir problemas de espacio.
