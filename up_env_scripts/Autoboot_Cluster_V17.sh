@@ -9,7 +9,7 @@
 # ║  ✔ [V17-A2]  SearXNG: searx.secret_key generada con openssl (persistente  ║
 # ║              en /tmp — no regenerada en cada boot salvo ausencia)          ║
 # ║  ✔ [V17-A3]  wait_port: reintento exponencial con máx 90s (no bucle fijo) ║
-# ║  ✔ [V17-A4]  indexar_vault.py: lanzado SOLO si ChromaDB responde 200       ║
+# ║  ✔ [V17-A4]  indexar_vault_v2.py: lanzado SOLO si ChromaDB responde 200       ║
 # ║  ✔ [V17-A5]  Red Docker 'ai_net' creada antes de los contenedores         ║
 # ║  ✔ [V17-A6]  Ollama CPU: --net ai_net + puerto 11435 explícito             ║
 # ║  ✔ [V17-A7]  ChromaDB: volumen anon eliminado → volumen nombrado           ║
@@ -58,7 +58,7 @@ MODELS_DIR="$AI_CORE/models"                    # pesos en exFAT
 VAULT_DIR="$AI_CORE/obsidian_vault"             # vault Obsidian en exFAT
 OBSIDIAN_APPDATA="$AI_HOME/obsidian_appdata"    # estado Obsidian en ext4
 ROUTER_SCRIPT="$AI_HOME/orchestrator_router_V10.py"
-VAULT_INDEXER="$AI_HOME/indexar_vault.py"
+VAULT_INDEXER="$AI_HOME/indexar_vault_v2.py"
 LOG_DIR="$AI_HOME/logs"
 LOG_FILE="$LOG_DIR/autoboot_v17_$(date +%Y%m%d_%H%M%S).log"
 PID_FILE="$AI_HOME/router_v10.pid"
@@ -497,7 +497,7 @@ if [[ -f "$VAULT_INDEXER" ]]; then
         warn "Ejecuta manualmente: python3 $VAULT_INDEXER"
     fi
 else
-    warn "indexar_vault.py no encontrado en $AI_HOME — vault no indexado"
+    warn "indexar_vault_v2.py no encontrado en $AI_HOME — vault no indexado"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
