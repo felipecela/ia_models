@@ -159,3 +159,72 @@ source ~/.zshrc
 ```
 
 A partir de este momento, cada vez que lances el comando `docker_on`, el sistema operativo aislará la ejecución de todas las imágenes que se descarguen (como ChromaDB, Obsidian, o cualquier otra herramienta de desarrollo) dentro del subdirectorio `/home/fcela-ga/sgoinfre/docker/`, dejando la unidad `/home/fcela-ga/sgoinfre/ai_core/` limpia exclusivamente para los archivos de parámetros de tus modelos de IA.
+
+
+---
+
+
+Totalmente de acuerdo. La ruta `/home/fcela-ga/sgoinfre/docker/containers_disk.img` es mucho más semántica, limpia y evita la redundancia. Es un excelente detalle de *clean code* aplicado a la administración de sistemas.
+
+Vamos a aplicar este cambio rápidamente en dos pasos.
+
+### Paso 1: Renombrar el archivo físico
+
+Si ya habías creado o movido el archivo con el nombre anterior, primero asegúrate de que Docker esté apagado y luego simplemente renómbralo con el comando `mv`:
+
+```bash
+# 1. Asegurar que está apagado y desmontado
+docker_off
+
+# 2. Renombrar el archivo
+mv /home/fcela-ga/sgoinfre/docker/docker_disk.img /home/fcela-ga/sgoinfre/docker/containers_disk.img
+
+```
+
+### Paso 2: Actualizar el Controlador en `~/.zshrc`
+
+Abre tu archivo `~/.zshrc` y reemplaza la función `docker_on` para que apunte al nuevo nombre exacto. La función `docker_off` se mantiene idéntica, pero te dejo el bloque completo para que solo tengas que copiar y pegar:
+
+```zsh
+# ─────────────────────────────────────────────────────────────────────────────
+# CONTROLADORES UNIVERSALES DE DOCKER (ENTORNO AISLADO SGOINFRE/DOCKER)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Encender Docker vinculando el disco virtual dedicado
+docker_on() {
+    # 1. Verificar si el disco ya está montado en /var/lib/docker
+    if ! mountpoint -q /var/lib/docker; then
+        echo -e "\033[1;34m[DOCKER]\033[0m Montando disco virtual (containers_disk.img) desde sgoinfre/docker..."
+        sudo mount -o loop /home/fcela-ga/sgoinfre/docker/containers_disk.img /var/lib/docker
+    fi
+    
+    # 2. Iniciar el motor de contenedores
+    echo -e "\033[1;34m[DOCKER]\033[0m Iniciando motor de contenedores..."
+    sudo systemctl start docker
+    echo -e "\033[1;32m[OK]\033[0m Docker operativo y aislado en /home/fcela-ga/sgoinfre/docker."
+}
+
+# Apagar Docker de forma ordenada y limpiar el sistema de archivos
+docker_off() {
+    echo -e "\033[1;34m[DOCKER]\033[0m Deteniendo motor de contenedores..."
+    sudo systemctl stop docker
+    sudo systemctl stop docker.socket 2>/dev/null
+    
+    # Desmontar el disco virtual para evitar cualquier riesgo de corrupción
+    if mountpoint -q /var/lib/docker; then
+        echo -e "\033[1;34m[DOCKER]\033[0m Desmontando almacenamiento virtual de contenedores..."
+        sudo umount /var/lib/docker
+    fi
+    echo -e "\033[1;32m[OK]\033[0m Entorno Docker cerrado de forma segura y disco liberado."
+}
+
+```
+
+Guarda el archivo y, como siempre, recarga la memoria de tu terminal:
+
+```zsh
+source ~/.zshrc
+
+```
+
+Con este último retoque, tu arquitectura queda impecable, modular y nombrada con precisión.
