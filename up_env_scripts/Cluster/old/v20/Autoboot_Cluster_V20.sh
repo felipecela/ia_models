@@ -61,7 +61,9 @@ section() { echo -e "\n${BLD}${CYN}═══════════════
 # [V20-C1] Router y indexador actualizados a V13/V5
 # [V18-A2] agent_data/ en ext4 para SQLite del agente autónomo
 # ─────────────────────────────────────────────────────────────────────────────
+# SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AI_CORE="${AI_CORE:-/home/fcela-ga/sgoinfre/ai_core}"   # SSD exFAT (compartido Win/Linux)
+# AI_HOME="$SCRIPT_DIR"                                   # ext4 — logs, chromadb, state
 AI_HOME="$HOME/ai_cluster"                              # ext4 — logs, chromadb, state
 MODELS_DIR="$AI_CORE/models"                            # pesos en exFAT
 VAULT_DIR="$AI_CORE/obsidian_vault"                     # vault Obsidian en exFAT
