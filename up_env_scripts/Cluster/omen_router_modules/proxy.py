@@ -20,7 +20,7 @@ import httpx
 from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
 
-from .config import (
+from omen_router_modules.config import (
     RUTAS,
     TABBYAPI_MODEL_LOAD,
     TABBYAPI_MODEL_UNLOAD,

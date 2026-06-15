@@ -849,7 +849,7 @@ if [[ -f "$VAULT_INDEXER" ]]; then
     CHROMA_HTTP_CODE=$(curl -so /dev/null -w "%{http_code}" "http://localhost:${PORT_CHROMADB}/api/v1/heartbeat" 2>/dev/null || echo "000")
     OLLAMA_CPU_HTTP_CODE=$(curl -so /dev/null -w "%{http_code}" "http://localhost:${PORT_OLLAMA_CPU}/api/tags" 2>/dev/null || echo "000")
 
-    if [[ "$CHROMA_HTTP_CODE" == "200" ]] && [[ "$OLLAMA_CPU_HTTP_CODE" == "200" ]]; then
+    if [[ ( "$CHROMA_HTTP_CODE" == "200" || "$CHROMA_HTTP_CODE" == "410" || "$CHROMA_HTTP_CODE" == "404" ) && "$OLLAMA_CPU_HTTP_CODE" == "200" ]]; then
         EMBED_MODEL_READY=$(docker exec ollama-cpu-router ollama list 2>/dev/null | grep -c "nomic-embed-text" || echo "0")
         if (( EMBED_MODEL_READY > 0 )); then
             info "Lanzando indexación incremental del vault (V6)…"

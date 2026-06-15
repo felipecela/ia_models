@@ -25,7 +25,7 @@ from typing import Optional
 
 import httpx
 
-from .config import (
+from omen_router_modules.config import (
     AGENT_TO_NIVEL,
     EMBED_CPU_URL,
     EMBED_DESCRIPTIONS,

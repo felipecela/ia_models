@@ -24,7 +24,7 @@ from typing import Optional
 
 import httpx
 
-from .config import (
+from omen_router_modules.config import (
     AGENT_CONTEXT_MAX_TOKENS,
     DB_PATH,
     MAX_ACTIVE_TASKS,

@@ -18,7 +18,7 @@ from typing import Optional
 
 import httpx
 
-from .config import (
+from omen_router_modules.config import (
     CHROMA_COLLECTION,
     CHROMA_URL,
     EMBED_CPU_URL,
