@@ -218,29 +218,33 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 info "Log: $LOG_FILE"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# [V20-C3] VERIFICACIÓN ESTRICTA DE ACCESO AL SSD (Directorio AI_CORE)
+# [V20-C3] VERIFICACIÓN ESTRICTA DE MONTAJE /mnt/ai_core
 # ─────────────────────────────────────────────────────────────────────────────
-section "Verificación de SSD exFAT y Permisos"
+section "Verificación de SSD exFAT"
 
-# 1. Comprobar que el directorio existe en el espejo del HOME
 if [[ ! -d "$AI_CORE" ]]; then
-    err "El directorio $AI_CORE no existe."
-    err "Verifica que el servicio systemd de BitLocker haya montado la unidad."
+    err "Directorio $AI_CORE no existe."
+    err "Verifica que el SSD exFAT está montado: mount /mnt/ai_core"
     exit 1
 fi
 
-# 2. Comprobar permisos de escritura (Vital para que SGLang/Ollama descarguen/lean)
-if [[ ! -w "$AI_CORE" ]]; then
-    err "El directorio $AI_CORE existe, pero está en solo-lectura (read-only)."
-    err "Revisa las banderas uid/gid y fmask/dmask en el script de montaje exFAT."
-    exit 1
+if ! mountpoint -q "$AI_CORE" 2>/dev/null; then
+    # Verificar si al menos es un directorio con contenido esperado
+    if [[ -d "$MODELS_DIR" ]]; then
+        warn "$AI_CORE no es un punto de montaje activo pero contiene $MODELS_DIR"
+        warn "Esto puede indicar que los datos están en la partición raíz."
+        warn "Verifica: mount | grep ai_core"
+    else
+        err "$AI_CORE no es un punto de montaje activo y no contiene modelos."
+        err "Monta el SSD: sudo mount /dev/sdX1 /mnt/ai_core"
+        exit 1
+    fi
+else
+    ok "SSD exFAT montado en $AI_CORE"
 fi
-
-# Si pasa ambas pruebas, el SSD está montado, mapeado y listo para la inferencia
-ok "Directorio de IA ($AI_CORE) operativo, montado y con permisos correctos."
 
 # Crear vault en exFAT si no existe
-mkdir -p "$VAULT_DIR" 2>/dev/null || warn "No se pudo crear $VAULT_DIR. Ignorando..."
+mkdir -p "$VAULT_DIR" 2>/dev/null || warn "No se pudo crear $VAULT_DIR (verificar permisos exFAT)"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COMPROBACIONES PREVIAS
