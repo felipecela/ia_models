@@ -310,6 +310,16 @@ fi
 # Si pasa ambas pruebas, el SSD está montado, mapeado y listo para la inferencia
 ok "Directorio de IA ($AI_CORE) operativo, montado y con permisos correctos."
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Montaje del Disco Virtual de Docker (ext4 sobre exFAT)
+# ─────────────────────────────────────────────────────────────────────────────
+if ! mountpoint -q /var/lib/docker; then
+    info "Montando disco virtual de Docker (ext4) desde el SSD..."
+    sudo mount -o loop "$AI_CORE/docker_disk.img" /var/lib/docker
+    sudo systemctl restart docker
+    sleep 2
+fi
+
 # Crear vault en exFAT si no existe
 mkdir -p "$VAULT_DIR" 2>/dev/null || warn "No se pudo crear $VAULT_DIR. Ignorando..."
 
