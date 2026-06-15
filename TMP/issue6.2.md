@@ -1,27 +1,3 @@
-# Contexto General del Proyecto
-
-He analizado las capacidades de mi equipo, compuesto por un portátil OMEN con 32 GB de RAM, procesador Intel Ultra 7 255 y tarjeta gráfica NVIDIA RTX 4070, con el objetivo de ejecutar localmente modelos de inteligencia artificial especializados en diferentes niveles de razonamiento, optimizando el equilibrio entre capacidad analítica, rendimiento y consumo de recursos.
-
-Como resultado de este análisis, he desarrollado principalmente el sistema Autoboot_Cluster_V10 junto con OpenClaw y un Orquestator Router implementado en Python. La arquitectura actual tiene como finalidad orquestar distintos modelos locales mediante una capa inteligente de enrutamiento.
-
-El flujo general consiste en que OpenClaw recibe inicialmente las solicitudes y utiliza un modelo PHI de Microsoft como capa inicial de análisis. Posteriormente, en función del nivel de razonamiento requerido, la petición es derivada dinámicamente hacia SGLang u Ollama para ejecutar el modelo más adecuado según la complejidad de la tarea.
-
-Adicionalmente, todos los modelos se almacenan en una unidad SSD compartida entre Windows y Linux utilizando formato exFAT. Debido a las limitaciones inherentes a este sistema de archivos, se han realizado diversas adaptaciones técnicas para garantizar la compatibilidad y el correcto funcionamiento de toda la infraestructura.
-
-# Objetivo General
-
-He desarrollado la aplicación que te adjunto a través de múltiples ciclos de evolución, incorporando progresivamente nuevas funcionalidades, correcciones, optimizaciones y mejoras hasta alcanzar la versión actual del sistema.
-
-Necesito que realices un proceso integral de auditoría técnica, validación, corrección, revalidación y consolidación de toda la solución implementada, utilizando un enfoque iterativo que permita detectar, corregir y volver a verificar cualquier problema encontrado hasta alcanzar el máximo nivel posible de estabilidad, seguridad, robustez, coherencia arquitectónica y fiabilidad operativa.
-
-No debes asumir que la versión actual es correcta por el hecho de funcionar aparentemente. Debes partir de una postura crítica y analítica, verificando cada componente, integración, flujo de trabajo, automatización y decisión técnica para identificar cualquier posible problema presente o futuro.
-
-Para proceder con las correcciones que detectes, entonces genera una version incremental, para el caso de los ficheros que vas a modificar, por ejemplo dejando los siguientes nombres en esta nueva entrega: Autoboot_Cluster_V20.sh, orchestrator_router_V13.py e indexar_vault_v5.py
-
-Para llevar a cabo este proceso ejecuta el PLAN DE TRABAJO PARA EL DESARROLLO:
-
----
-
 # PLAN DE TRABAJO PARA EL DESARROLLO
 # Fase 1 – Auditoría Técnica Integral
 
@@ -177,7 +153,4 @@ El resultado final deberá garantizar el máximo nivel posible de:
 
 El proceso únicamente podrá considerarse finalizado cuando la solución haya superado satisfactoriamente todos los ciclos de auditoría, corrección y revalidación necesarios para garantizar un funcionamiento correcto, consistente y sostenible a largo plazo.
 
----
 
-te adelanto el siguiente error, pero debes de encontrar el resto de errores:
-en la descripción de embeddings del nivel PRECISO, se perdieron las palabras "resultado exacto numérico STEM" que son importantes para el clasificador
