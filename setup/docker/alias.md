@@ -62,3 +62,26 @@ ai_cluster   # Relanza el autoboot
 ```
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# CONTROLADORES DE DOCKER (Gestionados por Systemd)
+# ─────────────────────────────────────────────────────────────────────────────
+alias docker_on='sudo systemctl start ssd-shared-docker.service && echo -e "\033[1;32m[OK]\03>
+alias docker_off='sudo systemctl stop ssd-shared-docker.service && echo -e "\033[1;34m[INFO]\>
+
+# Alias para ver el estado del disco de 150GB
+alias dinfo='echo -e "\n\033[1;36m[ DISCO VIRTUAL ]\033[0m" && df -h /mnt/docker_containers 2>
+
+
+
+# En ~/.zshrc — añadir "$@" al final de bash "$LATEST_SCRIPT"
+ai_cluster() {
+    local LATEST_SCRIPT=$(ls -v "$HOME/ai_cluster"/Autoboot_Cluster_V??.sh 2>/dev/null | tail -n 1)
+    if [[ -f "$LATEST_SCRIPT" ]]; then
+        echo -e "\033[1;36m[SISTEMA]\033[0m Autodetectada la última versión: $(basename "$LATEST_SCRIPT")"
+        bash "$LATEST_SCRIPT" "$@"
+    else
+        echo -e "\033[0;31m[ERROR]\033[0m No se encontró ningún script Autoboot_Cluster_V??.sh"
+    fi
+}
+
+
