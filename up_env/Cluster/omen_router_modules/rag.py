@@ -46,7 +46,7 @@ async def init_chroma(http_client: httpx.AsyncClient) -> bool:
     """Inicializa la conexión con ChromaDB y obtiene el UUID de la colección."""
     global _rag_disponible, _chroma_collection_id
     try:
-        r = await http_client.get(f"{CHROMA_URL}/api/v1/heartbeat", timeout=5.0)
+        r = await http_client.get(f"{CHROMA_URL}/api/v2/heartbeat", timeout=5.0)
         if r.status_code == 200:
             r2 = await http_client.post(
                 f"{CHROMA_URL}/api/v1/collections",
@@ -79,7 +79,7 @@ async def background_health() -> None:
     while True:
         try:
             async with httpx.AsyncClient(timeout=5.0) as c:
-                r = await c.get(f"{CHROMA_URL}/api/v1/heartbeat")
+                r = await c.get(f"{CHROMA_URL}/api/v2/heartbeat")
                 disponible = r.status_code == 200
 
                 if disponible:

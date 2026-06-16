@@ -1338,7 +1338,7 @@ def _main_locked(
 
     # Verificar conectividad ChromaDB
     try:
-        resp = session.get(f"{chroma_url}/api/v1/heartbeat", timeout=CONNECT_TIMEOUT)
+        resp = session.get(f"{chroma_url}/api/v2/heartbeat", timeout=CONNECT_TIMEOUT)
         resp.raise_for_status()
         print("✔ ChromaDB: conectado")
     except Exception as e:

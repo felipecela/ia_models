@@ -763,7 +763,7 @@ info "Esperando que ChromaDB inicialice su API HTTP en localhost:${PORT_CHROMADB
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     # Usando localhost y la ruta oficial v1
-    CHROMA_STATUS=$(get_http_status "http://localhost:${PORT_CHROMADB}/api/v1/heartbeat")
+    CHROMA_STATUS=$(get_http_status "http://localhost:${PORT_CHROMADB}/api/v2/heartbeat")
     
     if [ "$CHROMA_STATUS" = "200" ]; then
         CHROMADB_READY=true
