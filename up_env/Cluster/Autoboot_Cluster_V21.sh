@@ -147,8 +147,8 @@ wait_port() {
 get_http_status() {
     local url="$1"
     local code
-    # curl forzado a IPv4, SIN PROXY, max 3 segundos.
-    code=$(curl -4 --noproxy "*" -s -m 3 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+    # curl SIN forzar IPv4, SIN PROXY, max 3 segundos.
+    code=$(curl --noproxy "*" -s -m 3 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
     echo "${code: -3}"
 }
 
@@ -741,17 +741,6 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 section "5/7 — ChromaDB (:$PORT_CHROMADB)"
 
-# Generar chroma_config.yaml si no existe
-if [[ ! -f "${AI_HOME}/chroma_config.yaml" ]]; then
-cat > "${AI_HOME}/chroma_config.yaml" << YAML_EOF
-port: 8000
-listen_address: "0.0.0.0"
-persist_path: "/data"
-allow_reset: false
-YAML_EOF
-    ok "chroma_config.yaml generado en ${AI_HOME}"
-fi
-
 if is_container_running "chromadb"; then
     info "Contenedor 'chromadb' en ejecución. Reutilizando estado de memoria..."
 else
@@ -760,9 +749,9 @@ else
         --name chromadb \
         --network "$DOCKER_NET" \
         -p "${PORT_CHROMADB}:8000" \
-        -v chromadb_data:/data \
-        -v "${AI_HOME}/chroma_config.yaml:/chroma/config.yaml:ro" \
-        -e CONFIG_PATH=/chroma/config.yaml \
+        -v chromadb_data:/chroma/chroma \
+        -e IS_PERSISTENT=TRUE \
+        -e ANONYMIZED_TELEMETRY=FALSE \
         --restart unless-stopped \
         ghcr.io/chroma-core/chroma:latest
 fi
@@ -770,10 +759,11 @@ fi
 CHROMADB_READY=false
 MAX_RETRIES=60
 RETRY_COUNT=0
-info "Esperando que ChromaDB inicialice su API HTTP en 127.0.0.1:${PORT_CHROMADB}..."
+info "Esperando que ChromaDB inicialice su API HTTP en localhost:${PORT_CHROMADB}..."
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    CHROMA_STATUS=$(get_http_status "http://127.0.0.1:${PORT_CHROMADB}/api/v2/heartbeat")
+    # Usando localhost y la ruta oficial v1
+    CHROMA_STATUS=$(get_http_status "http://localhost:${PORT_CHROMADB}/api/v1/heartbeat")
     
     if [ "$CHROMA_STATUS" = "200" ]; then
         CHROMADB_READY=true
@@ -914,7 +904,7 @@ if [[ -f "$VAULT_INDEXER" ]]; then
     # Usando el helper blindado (con retry breve)
     OLLAMA_CPU_STATUS="000"
     for _i in $(seq 1 10); do
-        OLLAMA_CPU_STATUS=$(get_http_status "http://127.0.0.1:${PORT_OLLAMA_CPU}/")
+        OLLAMA_CPU_STATUS=$(get_http_status "http://localhost:${PORT_OLLAMA_CPU}/")
         [ "$OLLAMA_CPU_STATUS" = "200" ] && break
         sleep 2
     done
@@ -925,11 +915,10 @@ if [[ -f "$VAULT_INDEXER" ]]; then
 
     if [ "$CHROMA_STATUS" = "200" ] && [ "$OLLAMA_CPU_STATUS" = "200" ]; then
         ok "Motores validados. Iniciando indexación automática de la bóveda..."
-        # Le pasamos 127.0.0.1 al script de Python también por si acaso
         python3 "$VAULT_INDEXER" \
             --vault-dir "$VAULT_DIR" \
-            --chroma-url "http://127.0.0.1:${PORT_CHROMADB}" \
-            --ollama-embed-url "http://127.0.0.1:${PORT_OLLAMA_CPU}/api/embeddings" \
+            --chroma-url "http://localhost:${PORT_CHROMADB}" \
+            --ollama-embed-url "http://localhost:${PORT_OLLAMA_CPU}/api/embeddings" \
             --state-dir "$AGENT_DATA_DIR" \
             >> "$LOG_DIR/indexar_vault.log" 2>&1 &
         INDEXER_PID=$!
