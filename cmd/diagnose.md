@@ -401,3 +401,32 @@ curl -s http://127.0.0.1:8001/api/v1/heartbeat
 # Debe devolver {"nanosecond heartbeat": ...}
 
 
+---
+
+
+Antes de tocar nada, necesito ver el estado real de la RAM. Para diagnosticar bien, ejecuta estos dos comandos y pégame la salida:
+
+```bash
+free -h && echo "---" && docker stats --no-stream --format "table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.CPUPerc}}"
+```
+
+```bash
+cat /proc/meminfo | grep -E "MemTotal|MemFree|MemAvailable|Cached|Buffers|SwapTotal|SwapFree|Dirty|Writeback|Shmem"
+```
+
+Esos dos comandos me darán:
+1. **Cuánta RAM total/libre/disponible** tiene el sistema en este momento
+2. **Cuánta RAM consume exactamente cada contenedor Docker** (Ollama GPU, Ollama CPU, TabbAPI, ChromaDB, etc.)
+3. **Si hay swap activo** y si está siendo usado (señal clara de presión de memoria real)
+4. **Cuánta RAM es "cache recuperable"** por el kernel (que aparece como usada pero es liberable)
+
+Con eso podré decirte si el problema es:
+- RAM realmente agotada por los modelos cargados
+- RAM bloqueada por contenedores de los ciclos de crash anteriores de SGLang
+- Cache del kernel inflado y recuperable
+- Swap paginando en disco (que explicaría lentitud aunque "haya" RAM)
+
+El hecho de que la VRAM figure en 674 MiB de 7.5 GB libres con Ollama y TabbAPI activos ya me dice que TabbAPI está consumiendo alrededor de 5-6 GB de VRAM, que es coherente con `llama-3.1-8b-exl2`. El problema de RAM del sistema podría ser independiente de eso o consecuencia acumulada de los reinicios fallidos de SGLang, que cargaba pesos en RAM de sistema antes de fallar. Necesito los números reales antes de proponer cualquier corrección.
+
+
+
