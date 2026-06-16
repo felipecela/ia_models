@@ -230,3 +230,120 @@ Verificar que los demonios responden
 Por último, comprueba si los servicios de fondo que levantó el script están escuchando peticiones en el sistema:
 sudo systemctl is-active docker containerd
 
+
+---
+
+
+Es un acto de gran prudencia por tu parte haber detenido el proceso al ver ese error. En la administración de sistemas, cuando un directorio dice `Device or resource busy` (Dispositivo o recurso ocupado), significa que el kernel de Linux tiene bloqueado ese directorio porque todavía hay un "puente" activo cruzando por él.
+
+**¿Por qué ha pasado esto?**
+Hay dos escenarios muy probables por los que esa carpeta sigue ocupada a pesar de haber detenido el servicio:
+
+1. **El orden de las acciones:** Si modificaste el archivo `service_mgr.sh` cambiando la variable a `MNT_DIR="/mnt/docker_containers"` **antes** de ejecutar el comando `systemctl stop`, el script de apagado leyó la nueva ruta e intentó desmontar la carpeta nueva (que estaba vacía), dejando la vieja completamente montada.
+2. **Zombie Mounts:** Con los reseteos "duros" (`rm -rf`) que tuvimos que hacerle a Docker en los pasos anteriores para limpiar su caché, es posible que los puntos de montaje de bajo nivel se hayan quedado huérfanos y no hayan respondido a la señal de apagado del servicio.
+
+### El Procedimiento de Limpieza y Aseguramiento
+
+Vamos a desmontar manualmente los tres puentes físicos que conectan con esa carpeta para liberarla. Ejecuta estos comandos uno a uno en tu terminal:
+
+**1. Liberar los enlaces hacia el sistema:**
+Desmontamos las rutas donde Docker interactúa. (Añadimos `|| true` para que si ya están desmontados, el comando no lance un error rojo y simplemente continúe).
+
+```bash
+sudo umount /var/lib/docker 2>/dev/null || true
+sudo umount /var/lib/containerd 2>/dev/null || true
+
+```
+
+**2. Liberar el disco virtual maestro:**
+Ahora le decimos a Linux que desconecte el archivo de 150 GB `.img` de la carpeta antigua.
+
+```bash
+sudo umount /mnt/ai_containers
+
+```
+
+**3. Eliminar la carpeta (Ahora sí funcionará):**
+Al no haber ningún disco ni enlace bloqueando la ruta, el sistema te permitirá borrarla sin rechistar.
+
+```bash
+sudo rmdir /mnt/ai_containers
+
+```
+
+### El Lanzamiento Final
+
+Una vez que la carpeta antigua haya desaparecido sin darte errores, significa que el entorno está 100% limpio y liberado de la configuración anterior.
+
+Ya puedes levantar tu servicio con total seguridad:
+
+```bash
+sudo systemctl start ssd-shared-docker.service
+
+```
+
+A partir de este punto, tu disco virtual quedará montado de forma permanente y genérica en `/mnt/docker_containers`, y ya podrás volver a lanzar `ai_cluster` o cualquier otro proyecto de contenedores que necesites.
+
+
+---
+
+
+Este es un mensaje de protección estándar de Systemd. Como es un gestor que funciona en segundo plano, cuando un script falla o decide abortar (por ejemplo, si se activó nuestra línea de `exit 1` por seguridad), no te lanza el texto del error directamente a la cara, sino que lo guarda en su bitácora o diario interno.
+
+Lo más probable es que, tras los reseteos manuales que hicimos o al editar el script, haya quedado algún "dispositivo loop" (el puente interno de Linux para leer archivos `.img`) enganchado, o que haya un pequeño error de sintaxis tipográfico en la línea que modificaste.
+
+Para no jugar a las adivinanzas, vamos a pedirle a Systemd que nos muestre exactamente qué imprimió tu script justo antes de fallar.
+
+Ejecuta estos dos comandos en tu terminal:
+
+```bash
+sudo systemctl status ssd-shared-docker.service
+
+```
+
+```bash
+sudo journalctl -u ssd-shared-docker.service -n 20 --no-pager
+
+```
+
+¿Podrías compartirme la salida que te devuelven esos comandos para que podamos identificar la causa exacta y aplicar la solución?
+
+
+---
+
+
+¡Perfecto! Traer los logs ha sido la decisión correcta, porque nos han dado el diagnóstico exacto de forma inmediata y sin margen de error.
+
+Fíjate en esta línea específica de tu `journalctl`:
+`Failed at step EXEC spawning /home/fcela-ga/docker/service_mgr.sh: Permission denied`
+
+Ese error (`status=203/EXEC`) significa que Systemd sabe dónde está tu script, pero el sistema operativo le ha negado el permiso para **ejecutarlo**.
+
+**¿Por qué ha pasado esto justo ahora si antes funcionaba?**
+Cuando abriste el archivo `service_mgr.sh` para modificar la variable de la ruta, es muy probable que tu editor de texto haya guardado los cambios sobrescribiendo el archivo, y en ese proceso, **el archivo perdió su "bandera" de ejecución (`+x`)**. Linux por defecto guarda los archivos de texto solo con permisos de lectura y escritura por seguridad.
+
+### La Solución (Un solo paso)
+
+Para solucionarlo, solo tenemos que devolverle el permiso de ejecución a tu script maestro. Ejecuta este comando en tu terminal:
+
+```bash
+chmod +x /home/fcela-ga/docker/service_mgr.sh
+
+```
+
+Una vez devueltos los permisos, el servicio ya podrá lanzar el script sin que Linux lo bloquee. Vuelve a encenderlo con tu comando habitual:
+
+```bash
+sudo systemctl start ssd-shared-docker.service
+
+```
+
+Para comprobar que esta vez ha arrancado con éxito y que la nueva carpeta `/mnt/docker_containers` se ha montado correctamente, puedes revisar el estado y verás el semáforo en verde:
+
+```bash
+sudo systemctl status ssd-shared-docker.service
+
+```
+
+
+
