@@ -78,7 +78,7 @@ PORT_ROUTER=8000
 TIMEOUT_OLLAMA=90
 TIMEOUT_TABBYAPI=120
 TIMEOUT_SGLANG=240                                      # [V21-B3] Aumentado de 120 a 240 para primera carga
-TIMEOUT_CHROMADB=120
+TIMEOUT_CHROMADB=60
 TIMEOUT_OBSIDIAN=60
 TIMEOUT_SEARXNG=60
 TIMEOUT_ROUTER_HEALTH=60
@@ -147,8 +147,8 @@ wait_port() {
 get_http_status() {
     local url="$1"
     local code
-    # curl FORZADO a IPv4, SIN PROXY, HTTP/1.1, max 3 segundos.
-    code=$(curl --noproxy "*" --ipv4 --http1.1 -s -m 3 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+    # curl SIN forzar IPv4, SIN PROXY, max 3 segundos.
+    code=$(curl --noproxy "*" -s -m 3 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
     echo "${code: -3}"
 }
 
@@ -757,30 +757,20 @@ else
 fi
 
 CHROMADB_READY=false
-MAX_RETRIES=$TIMEOUT_CHROMADB
+MAX_RETRIES=60
 RETRY_COUNT=0
-info "Esperando que ChromaDB inicialice su API HTTP en 127.0.0.1:${PORT_CHROMADB}..."
+info "Esperando que ChromaDB inicialice su API HTTP en localhost:${PORT_CHROMADB}..."
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if wait_port "ChromaDB" 127.0.0.1 "$PORT_CHROMADB" "$((MAX_RETRIES - RETRY_COUNT))"; then
-        CHROMA_STATUS=$(get_http_status "http://127.0.0.1:${PORT_CHROMADB}/api/v2/heartbeat")
-    else
-        CHROMA_STATUS="000"
-    fi
-
+    # Usando localhost y la ruta oficial v1
+    CHROMA_STATUS=$(get_http_status "http://localhost:${PORT_CHROMADB}/api/v2/heartbeat")
+    
     if [ "$CHROMA_STATUS" = "200" ]; then
         CHROMADB_READY=true
         break
     fi
-
-    if docker ps --format '{{.Names}}' | grep -qx "chromadb"; then
-        INTERNAL_STATUS=$(docker exec chromadb curl --noproxy "*" --ipv4 -s -m 3 -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/api/v2/heartbeat 2>/dev/null || echo "000")
-        if [ "$INTERNAL_STATUS" = "200" ]; then
-            info "ChromaDB interno responde, pero el host forwarding en 127.0.0.1:${PORT_CHROMADB} aún no está listo."
-        else
-            info "ChromaDB interno todavía no está listo (HTTP ${INTERNAL_STATUS})."
-        fi
-    else
+    
+    if ! docker ps --format '{{.Names}}' | grep -qx "chromadb"; then
         err "Contenedor 'chromadb' ya no está en ejecución. Revisa: docker logs chromadb"
         break
     fi
@@ -1158,7 +1148,7 @@ else
     printf "%-30s %-12s %b\n" "TabbAPI ExLlamaV2" ":${PORT_TABBYAPI}" "${YEL}— modelos EXL2 no instalados${NC}"
 fi
 check_service "SGLang"                  localhost "$PORT_SGLANG"
-check_service "ChromaDB"                127.0.0.1 "$PORT_CHROMADB"
+check_service "ChromaDB"                localhost "$PORT_CHROMADB"
 check_service "Obsidian Web UI"         localhost "$PORT_OBSIDIAN"
 check_service "SearXNG"                 localhost "$PORT_SEARXNG"
 check_service "Router V14 (Agent)"      localhost "$PORT_ROUTER"

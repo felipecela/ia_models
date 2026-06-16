@@ -1,3 +1,4 @@
+# ~/ai_cluster/chroma_config.yaml
 port: 8000
 listen_address: "0.0.0.0"
 persist_path: "/data"
