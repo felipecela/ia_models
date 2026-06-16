@@ -3,44 +3,176 @@
 # ║ OMEN AI Cluster — Autoboot V27                                             ║
 # ║ RTX 4070 8GB · Intel Ultra 7 · 32GB RAM · SSD exFAT /mnt/ai_core          ║
 # ╠══════════════════════════════════════════════════════════════════════════════╣
-# ║ V21 — Correcciones de auditoría integral sobre V20:                        ║
-# ║  ✔ [V21-B1]  Router actualizado a V14 (orchestrator_router_V14.py)         ║
-# ║  ✔ [V21-B2]  Indexador actualizado a V6 (indexar_vault_v6.py)              ║
-# ║  ✔ [V21-B3]  Timeout configurable para SGLang (H-05) — default 240s       ║
-# ║  ✔ [V21-B4]  Verificación de puertos antes de arrancar servicios (H-08)   ║
-# ║  ✔ [V21-B5]  Check de espacio en disco antes de arrancar (H-11)           ║
-# ║  ✔ [V21-B6]  Docker restart policy ya en V20 (H-13) — verificado          ║
-# ║  ✔ [V21-B7]  Distinguir ESRCH vs EPERM en cleanup PIDs (H-16)            ║
-# ║  ✔ [V21-B8]  Rotación de logs del Autoboot (H-19)                         ║
-# ║  ✔ [V21-B9]  Verificación de modelo SGLang en ruta (H-26)                 ║
-# ║  ✔ [V21-B10] Configuración separada en sección delimitada (H-30)          ║
-# ║  ✔ [V21-B11] Verificación de integridad de scripts (H-36)                 ║
-# ║  ✔ [V21-B12] Watchdog post-arranque opcional (H-40)                        ║
-# ║  ✔ [V21-B13] numpy añadido a dependencias Python                           ║
-# ║  ✔ [V21-B14] Soporte para omen_router_modules/ (paquete modular)          ║
+# ║ V27 — Nuevas funcionalidades sobre V26:                                    ║
+# ║  ✔ [V27-S1] Flag --sglang: intercambia TabbAPI por SGLang en VRAM.        ║
+# ║             Por defecto TabbAPI activo. Con --sglang: TabbAPI se detiene   ║
+# ║             (libera ~6.9GB VRAM) y SGLang arranca con mem-fraction 0.50   ║
+# ║             y max-total-tokens 16384 (sin --enable-torch-compile).         ║
+# ║  ✔ [V27-S2] En modo --sglang SGLang omite VRAM check (ya tiene la VRAM).  ║
+# ║  ✔ [V27-S3] Resumen final muestra 'Modo VRAM activo' (default/sglang).    ║
+# ║  ✔ [V27-S4] --status y --stop actualizados para ambos modos.              ║
+# ║  ✔ [V27-S5] --help documenta el nuevo flag --sglang.                      ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║  ✔ [V25-F1] Flag --stop: para todos los contenedores y el router de forma  ║
+# ║             ordenada (rescatado y actualizado desde V16)                   ║
+# ║  ✔ [V25-F2] Flag --status: muestra el estado HTTP de todos los servicios  ║
+# ║             del cluster sin arrancar ni detener nada (rescatado de V16)    ║
+# ║  ✔ [V25-F3] Flag --reindex: re-indexa el vault Obsidian en ChromaDB       ║
+# ║             (rescatado de V16, actualizado a indexar_vault_v6.py)          ║
+# ║  ✔ [V25-F4] Flag --warmup: carga en VRAM los modelos Ollama GPU sin       ║
+# ║             arrancar el cluster completo (rescatado de V16)                ║
+# ║  ✔ [V25-F5] Parseo de argumentos corregido: los flags de acción rápida    ║
+# ║             (--stop/--status/--reindex/--warmup) se ejecutan DESPUÉS de    ║
+# ║             cargar la configuración pero ANTES de arrancar servicios       ║
 # ╠══════════════════════════════════════════════════════════════════════════════╣
-# ║ Heredado de V20 (todas las correcciones V20-C1..C15):                      ║
-# ║  ✔ [V20-C1..C15] Todas las mejoras de V20 mantenidas                       ║
+# ║ Heredado de V24 (todas las correcciones V24-E1..E3):                       ║
+# ║  ✔ [V24-E1..E3] Flag --last, --help, parseo de argumentos — sin cambios   ║
 # ╠══════════════════════════════════════════════════════════════════════════════╣
-# ║ Contenedores levantados:                                                   ║
-# ║  1. ollama-gpu-main       :11434  GPU VRAM primaria                       ║
-# ║  2. ollama-cpu-router     :11435  CPU — nomic-embed + phi4-mini           ║
-# ║  3. exllamav2-api         :5000   TabbAPI — CHAT / INSTANTANEO            ║
-# ║  4. sglang-server         :30000  SGLang — AGIL                           ║
-# ║  5. chromadb              :8001   RAG vectorial (vol. nombrado ext4)      ║
-# ║  6. obsidian-kb           :3000   Obsidian Web UI                         ║
-# ║  7. searxng               :8888   Búsqueda web privada                    ║
-# ║  Router: orchestrator_router_V14.py :8000 (FastAPI + Agent Engine)        ║
+# ║ Heredado de V23 (todas las correcciones V23-D1):                           ║
+# ║  ✔ [V23-D1] Red Docker: limpieza de bridges huérfanos — sin cambios        ║
+# ╠══════════════════════════════════════════════════════════════════════════════╣
+# ║ Heredado de V22 (todas las correcciones V22-C1..C9):                       ║
+# ║  ✔ [V22-C1..C9] Todas las mejoras de V22 mantenidas sin cambios            ║
+# ╠══════════════════════════════════════════════════════════════════════════════╣
+# ║ Heredado de V21 (todas las correcciones V21-B1..B14):                      ║
+# ║  ✔ [V21-B1..B14] Todas las mejoras de V21 mantenidas sin cambios           ║
+# ╠══════════════════════════════════════════════════════════════════════════════╣
+# ║ Contenedores levantados:                                                    ║
+# ║  1. ollama-gpu-main     :11434   GPU VRAM primaria                         ║
+# ║  2. ollama-cpu-router   :11435   CPU — nomic-embed + phi4-mini             ║
+# ║  3. exllamav2-api       :5000    TabbAPI — CHAT / INSTANTANEO              ║
+# ║  4. sglang-server       :30000   SGLang — AGIL                             ║
+# ║  5. chromadb            :8001    RAG vectorial (vol. nombrado ext4)        ║
+# ║  6. obsidian-kb         :3000    Obsidian Web UI                           ║
+# ║  7. searxng             :8888    Búsqueda web privada                      ║
+# ║  Router: orchestrator_router_V14.py  :8000  (FastAPI + Agent Engine)       ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
 set -euo pipefail
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# [V24-E2/E3] PARSEO DE ARGUMENTOS — debe ir antes de la configuración
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Valores por defecto de flags
+_FLAG_LAST=false
+_FLAG_HELP=false
+_FLAG_STOP=false      # [V25-F1]
+_FLAG_STATUS=false    # [V25-F2]
+_FLAG_REINDEX=false   # [V25-F3]
+_FLAG_WARMUP=false    # [V25-F4]
+_FLAG_SGLANG=false    # [V27-S1]
+
+# ─── Función de ayuda ────────────────────────────────────────────────────────
+show_help() {
+    cat << 'HELP_EOF'
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  OMEN AI Cluster — Autoboot V25                                            ║
+║  Uso: ai_cluster [--last] [--help]                                         ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  FLAGS DISPONIBLES                                                         ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║                                                                            ║
+║  (sin flags)    Arranque normal usando las imágenes Docker ya presentes.   ║
+║                 Si la imagen no existe localmente, se descarga solo        ║
+║                 la primera vez (comportamiento estándar de docker run).    ║
+║                                                                            ║
+║  --last         Fuerza docker pull en todas las imágenes :latest antes     ║
+║                 de arrancar cada servicio. Actualiza a la versión más      ║
+║                 reciente disponible en el registry.                        ║
+║                 ⚠  EXCEPCIÓN: ChromaDB siempre usa la versión pinada      ║
+║                    (0.6.3) y NUNCA se actualiza con este flag.             ║
+║                 ⚠  Requiere conexión a Internet y tiempo adicional.        ║
+║                 ⚠  Puede introducir cambios de comportamiento si upstream  ║
+║                    rompe compatibilidad. Usar con precaución.              ║
+║                                                                            ║
+║  --help         Muestra esta ayuda y termina sin arrancar el cluster.      ║
+║                                                                            ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  GESTIÓN DEL CLUSTER                                                       ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║                                                                            ║
+║  --stop         Para todos los contenedores y el router de forma           ║
+║                 ordenada. Equivale al alias dstop + dkill del cluster.     ║
+║                                                                            ║
+║  --status       Muestra el estado HTTP de todos los servicios en tiempo    ║
+║                 real. No arranca ni detiene nada.                          ║
+║                                                                            ║
+║  --reindex      Re-indexa el vault Obsidian en ChromaDB usando             ║
+║                 indexar_vault_v6.py --clean. Requiere cluster activo.      ║
+║                                                                            ║
+║  --warmup       Carga los modelos Ollama GPU en VRAM enviando un prompt    ║
+║  --sglang       Modo VRAM alternativo: para TabbAPI (libera ~6.9GB VRAM)   ║
+║                 y arranca SGLang (llama-3.1-8b-awq) con configuración      ║
+║                 conservadora. Ambos motores no pueden coexistir en 8GB.    ║
+║                 mínimo a cada uno. No arranca el cluster completo.         ║
+║                                                                            ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  EJEMPLOS                                                                  ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║                                                                            ║
+║  ai_cluster              # Arranque normal (imágenes locales)              ║
+║  ai_cluster --last       # Arranque actualizando todas las imágenes        ║
+║  ai_cluster --sglang     # Activa SGLang (para TabbAPI para liberar VRAM)  ║
+║  ai_cluster --help       # Muestra esta ayuda                              ║
+║                                                                            ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  VARIABLES DE ENTORNO                                                      ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║                                                                            ║
+║  AI_CORE=/ruta          Override de la ruta del SSD exFAT                 ║
+║  OMEN_WATCHDOG=true     Activa el watchdog post-arranque                  ║
+║                                                                            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+HELP_EOF
+}
+
+# ─── Parseo de argumentos ────────────────────────────────────────────────────
+for _arg in "$@"; do
+    case "$_arg" in
+        --last)
+            _FLAG_LAST=true
+            ;;
+        --help|-h)
+            _FLAG_HELP=true
+            ;;
+        --stop)         # [V25-F1]
+            _FLAG_STOP=true
+            ;;
+        --status)       # [V25-F2]
+            _FLAG_STATUS=true
+            ;;
+        --reindex)      # [V25-F3]
+            _FLAG_REINDEX=true
+            ;;
+        --warmup)       # [V25-F4]
+            _FLAG_WARMUP=true
+            ;;
+        --sglang)       # [V27-S1]
+            _FLAG_SGLANG=true
+            ;;
+        *)
+            echo "[ERROR] Flag desconocido: '$_arg'"
+            echo "        Usa --help para ver los flags disponibles."
+            exit 1
+            ;;
+    esac
+done
+
+# Ejecutar acciones inmediatas (no requieren configuración cargada)
+if [[ "$_FLAG_HELP" == "true" ]]; then
+    show_help
+    exit 0
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # [V21-B10] CONFIGURACIÓN — Sección separada y documentada
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ─── Rutas principales ────────────────────────────────────────────────────────
-AI_CORE="${AI_CORE:-/home/fcela-ga/sgoinfre/ai_core}"   # SSD exFAT (compartido Win/Linux)
+AI_CORE="${AI_CORE:-/home/fcela-ga/sgoinfre/ai_core}" # SSD exFAT (compartido Win/Linux)
 AI_HOME="$HOME/ai_cluster"                              # ext4 — logs, chromadb, state
 MODELS_DIR="$AI_CORE/models"                            # pesos en exFAT
 VAULT_DIR="$AI_CORE/obsidian_vault"                     # vault Obsidian en exFAT
@@ -54,7 +186,7 @@ VAULT_INDEXER="$AI_HOME/indexar_vault_v6.py"
 # ─── Directorios de estado ───────────────────────────────────────────────────
 AGENT_DATA_DIR="$AI_HOME/agent_data"                    # SQLite del agente (ext4)
 LOG_DIR="$AI_HOME/logs"
-LOG_FILE="$LOG_DIR/autoboot_v27_$(date +%Y%m%d_%H%M%S).log"
+LOG_FILE="$LOG_DIR/autoboot_v26_$(date +%Y%m%d_%H%M%S).log"  # [V22-C9] renombrado, [V23-D1] bridge fix
 PID_FILE="$AI_HOME/router_v14.pid"
 INDEXER_PID_FILE="$AI_HOME/indexer.pid"
 SEARXNG_SECRET_FILE="$AI_HOME/.searxng_secret"
@@ -63,6 +195,7 @@ SEARXNG_SETTINGS="$AI_HOME/searxng_settings.yml"
 # ─── Red Docker ──────────────────────────────────────────────────────────────
 DOCKER_NET="ai_net"
 DOCKER_NET_SUBNET="172.28.0.0/16"
+DOCKER_NET_SUBNET_PREFIX="172.28"   # [V23-D1] Prefijo para detección de bridges huérfanos
 
 # ─── Puertos ─────────────────────────────────────────────────────────────────
 PORT_OLLAMA_GPU=11434
@@ -77,31 +210,44 @@ PORT_ROUTER=8000
 # ─── Timeouts (segundos) ─────────────────────────────────────────────────────
 TIMEOUT_OLLAMA=90
 TIMEOUT_TABBYAPI=120
-TIMEOUT_SGLANG=240                                      # [V21-B3] Aumentado de 120 a 240 para primera carga
-TIMEOUT_CHROMADB=120
+TIMEOUT_SGLANG=240          # [V21-B3] Aumentado de 120 a 240 para primera carga
+TIMEOUT_CHROMADB=60         # [V22-C5] 60s HTTP puro (suficiente para 0.6.3)
 TIMEOUT_OBSIDIAN=60
 TIMEOUT_SEARXNG=60
 TIMEOUT_ROUTER_HEALTH=60
 
 # ─── Espacio mínimo (MB) ─────────────────────────────────────────────────────
-MIN_DISK_EXT4_MB=2048                                   # [V21-B5] 2GB mínimo en ext4
-MIN_DISK_EXFAT_MB=5120                                  # 5GB mínimo en exFAT para pulls
+MIN_DISK_EXT4_MB=2048       # [V21-B5] 2GB mínimo en ext4
+MIN_DISK_EXFAT_MB=5120      # 5GB mínimo en exFAT para pulls
 
 # ─── Modelos ─────────────────────────────────────────────────────────────────
 OLLAMA_GPU_MODELS=("deepseek-r1:14b" "phi4-reasoning:plus" "phi4-reasoning:14b-q4_K_M" "qwen2.5:32b")
 OLLAMA_CPU_MODELS=("nomic-embed-text" "phi4-mini")
 
+# ─── [V24-E1] Imágenes Docker — versiones por defecto (probadas y estables) ──
+# ChromaDB SIEMPRE usa versión pinada — nunca se actualiza con --last
+IMG_CHROMADB="ghcr.io/chroma-core/chroma:0.6.3"        # PINADA — no modificar
+# Las siguientes usan :latest por defecto; con --last se fuerza docker pull
+IMG_OLLAMA="ollama/ollama:latest"
+IMG_TABBYAPI="ghcr.io/theroyallab/tabbyapi:latest"
+IMG_SGLANG="lmsysorg/sglang:latest"
+IMG_OBSIDIAN="linuxserver/obsidian:latest"
+IMG_SEARXNG="searxng/searxng:latest"
+IMG_CURL="curlimages/curl:latest"                        # Usado en health checks internos
+# Flag de actualización (se activa con --last)
+PULL_LATEST=false                                        # [V24-E1] true = docker pull antes de arrancar
+
 # ─── Watchdog ────────────────────────────────────────────────────────────────
-WATCHDOG_ENABLED="${OMEN_WATCHDOG:-false}"              # [V21-B12] Activar con OMEN_WATCHDOG=true
-WATCHDOG_INTERVAL=120                                   # Segundos entre checks
+WATCHDOG_ENABLED="${OMEN_WATCHDOG:-false}" # [V21-B12] Activar con OMEN_WATCHDOG=true
+WATCHDOG_INTERVAL=120       # Segundos entre checks
 
 # ─── Arrays para PIDs ────────────────────────────────────────────────────────
 declare -a GPU_PULL_PIDS=()
 declare -a CPU_PULL_PIDS=()
 
 # ─── Logs: rotación ─────────────────────────────────────────────────────────
-MAX_LOG_FILES=10                                        # [V21-B8] Máximo de logs a mantener
-MAX_LOG_SIZE_MB=100                                     # Tamaño máximo por log antes de truncar
+MAX_LOG_FILES=10            # [V21-B8] Máximo de logs a mantener
+MAX_LOG_SIZE_MB=100         # Tamaño máximo por log antes de truncar
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # HELPERS Y FUNCIONES UTILITARIAS
@@ -111,15 +257,17 @@ MAX_LOG_SIZE_MB=100                                     # Tamaño máximo por lo
 RED='\033[0;31m'; YEL='\033[0;33m'; GRN='\033[0;32m'; CYN='\033[0;36m'; NC='\033[0m'
 BLD='\033[1m'
 
-info()    { echo -e "${CYN}[INFO]${NC}  $*"; }
-ok()      { echo -e "${GRN}[OK]${NC}    $*"; }
-warn()    { echo -e "${YEL}[WARN]${NC}  $*"; }
-err()     { echo -e "${RED}[ERROR]${NC} $*" >&2; }
-section() { echo -e "\n${BLD}${CYN}══════════════════════════════════════════════${NC}"; \
-            echo -e "${BLD}${CYN}  $*${NC}"; \
-            echo -e "${BLD}${CYN}══════════════════════════════════════════════${NC}"; }
+info() { echo -e "${CYN}[INFO]${NC}  $*"; }
+ok()   { echo -e "${GRN}[OK]${NC}    $*"; }
+warn() { echo -e "${YEL}[WARN]${NC}  $*"; }
+err()  { echo -e "${RED}[ERROR]${NC} $*" >&2; }
+section() {
+    echo -e "\n${BLD}${CYN}══════════════════════════════════════════════${NC}"
+    echo -e "${BLD}${CYN}  $*${NC}"
+    echo -e "${BLD}${CYN}══════════════════════════════════════════════${NC}"
+}
 
-# ─── wait_port — backoff exponencial ─────────────────────────────────────────
+# ─── wait_port — backoff exponencial (solo TCP) ───────────────────────────────
 wait_port() {
     local label="$1" host="$2" port="$3"
     local max_s="${4:-90}"
@@ -147,12 +295,11 @@ wait_port() {
 get_http_status() {
     local url="$1"
     local code
-    # curl FORZADO a IPv4, SIN PROXY, HTTP/1.1, max 3 segundos.
     code=$(curl --noproxy "*" --ipv4 --http1.1 -s -m 3 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
     echo "${code: -3}"
 }
 
-# ─── [V21-B4] Verificar si un puerto está libre ─────────────────────────────
+# ─── [V21-B4] Verificar si un puerto está libre ──────────────────────────────
 check_port_free() {
     local port="$1" label="${2:-servicio}"
     if ss -tlnp 2>/dev/null | grep -q ":${port} "; then
@@ -165,7 +312,7 @@ check_port_free() {
     return 0
 }
 
-# ─── Contenedor seguro — Idempotente ────────────────────────────────────────
+# ─── Contenedor seguro — Idempotente ─────────────────────────────────────────
 ensure_container_stopped() {
     local name="$1"
     if docker ps -a --format '{{.Names}}' | grep -qx "$name"; then
@@ -178,11 +325,10 @@ ensure_container_stopped() {
 # ─── Comprobar si el contenedor está vivo ────────────────────────────────────
 is_container_running() {
     local name="$1"
-    # Preguntamos a Docker si el estado exacto es "running"
     if [ "$(docker inspect -f '{{.State.Status}}' "$name" 2>/dev/null)" == "running" ]; then
-        return 0 # Verdadero: Está corriendo
+        return 0
     fi
-    return 1 # Falso: Está apagado, crasheado o no existe
+    return 1
 }
 
 # ─── Validación de filesystem ────────────────────────────────────────────────
@@ -190,9 +336,7 @@ validate_filesystem() {
     local dir="$1"
     local label="${2:-directorio}"
     local fs_type
-
     fs_type=$(df --output=fstype "$dir" 2>/dev/null | tail -1 | tr -d '[:space:]')
-
     case "$fs_type" in
         ext4|ext3|xfs|btrfs|tmpfs|zfs)
             ok "$label: filesystem '$fs_type' compatible con SQLite WAL"
@@ -212,12 +356,10 @@ validate_filesystem() {
 
 # ─── [V21-B7] Cleanup con distinción ESRCH vs EPERM ─────────────────────────
 safe_kill_check() {
-    # Retorna 0 si el proceso existe y es nuestro, 1 si no existe, 2 si existe pero sin permisos
     local pid="$1"
     if kill -0 "$pid" 2>/dev/null; then
-        return 0  # Existe y tenemos permisos
+        return 0    # Existe y tenemos permisos
     else
-        # Distinguir: ESRCH (no existe) vs EPERM (existe pero sin permisos)
         if [[ -d "/proc/$pid" ]]; then
             return 2  # Existe pero sin permisos (EPERM)
         else
@@ -226,22 +368,206 @@ safe_kill_check() {
     fi
 }
 
+
+# ─── [V24-E1] Pull condicional — solo si --last fue especificado ─────────────
+# ChromaDB NUNCA se incluye aquí (versión pinada).
+pull_if_last() {
+    local image="$1"
+    local label="${2:-$image}"
+    if [[ "$PULL_LATEST" == "true" ]]; then
+        info "[--last] Actualizando imagen: $image"
+        if docker pull "$image" 2>&1 | tail -3 | grep -qE "Status:|Pull complete|up to date"; then
+            ok "[--last] $label actualizado"
+        else
+            docker pull "$image"   # Mostrar output completo si algo falla
+            warn "[--last] $label — comprueba si el pull fue exitoso"
+        fi
+    fi
+}
+
+# ─── [V23-D1] Limpiar bridges kernel huérfanos del mismo subnet ──────────────
+# Un bridge huérfano (state DOWN, sin red Docker asociada) con el mismo subnet
+# que ai_net provoca DOS rutas en la tabla de routing del kernel para 172.28.x.x.
+# El kernel elige la ruta "linkdown" y todos los paquetes mueren antes de llegar
+# al contenedor (RST o "no route to host"). Esta función lo detecta y elimina.
+cleanup_orphan_bridges() {
+    local prefix="$1"   # Ej: "172.28"
+    local removed=0
+
+    for iface in $(ip link show 2>/dev/null | grep -oP 'br-[a-f0-9]+(?=:)' | sort -u); do
+        # ¿Tiene IP del subnet en cuestión?
+        if ! ip addr show "$iface" 2>/dev/null | grep -qP "inet ${prefix}\."; then
+            continue
+        fi
+        # ¿Está en state DOWN (sin carrier)?
+        if ! ip link show "$iface" 2>/dev/null | grep -q "state DOWN"; then
+            continue
+        fi
+        # ¿Docker NO la conoce? (comparamos el sufijo hex del nombre con los IDs de red)
+        local iface_id="${iface#br-}"
+        if docker network ls --no-trunc -q 2>/dev/null | grep -qF "$iface_id"; then
+            continue  # Docker sí la conoce — no tocar
+        fi
+        # Bridge huérfano confirmado: DOWN + mismo subnet + desconocido por Docker
+        warn "[V23-D1] Bridge huérfano detectado: $iface (inet ${prefix}.x, state DOWN, sin red Docker)"
+        warn "[V23-D1] Causa probable: red Docker recreada en arranque anterior sin limpiar la interfaz kernel"
+        if sudo ip link delete "$iface" 2>/dev/null; then
+            ok "[V23-D1] Bridge huérfano $iface eliminado — ruta duplicada limpiada"
+            (( removed++ ))
+        else
+            warn "[V23-D1] No se pudo eliminar $iface automáticamente"
+            warn "[V23-D1] Solución manual: sudo ip link delete $iface"
+        fi
+    done
+
+    if (( removed == 0 )); then
+        info "[V23-D1] Sin bridges huérfanos detectados para el prefix ${prefix}.x"
+    fi
+}
+
+# ─── [V24-E1] Propagar _FLAG_LAST → PULL_LATEST (tras cargar configuración) ──
+if [[ "$_FLAG_LAST" == "true" ]]; then
+    PULL_LATEST=true
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# [V25-F1..F4] ACCIONES DE FLAGS — se ejecutan DESPUÉS de cargar configuración
+# Requieren que las variables (ROUTER_SCRIPT, VAULT_INDEXER, etc.) estén listas.
+# Los flags de acción rápida terminan el script con exit 0 sin arrancar nada.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ─── [V25-F1] --stop ─────────────────────────────────────────────────────────
+if [[ "$_FLAG_STOP" == "true" ]]; then
+    section "Deteniendo OMEN AI Cluster V26…"
+    # 1. Router Python
+    if [[ -f "$PID_FILE" ]]; then
+        OLD_PID=$(cat "$PID_FILE" 2>/dev/null || echo "")
+        if [[ -n "$OLD_PID" ]] && kill -0 "$OLD_PID" 2>/dev/null; then
+            kill "$OLD_PID" 2>/dev/null && ok "Router V14 detenido (PID $OLD_PID)" || warn "No se pudo matar PID $OLD_PID"
+        fi
+        rm -f "$PID_FILE"
+    fi
+    pkill -f "orchestrator_router" 2>/dev/null && ok "Procesos router limpiados" || true
+    # 2. Indexador en background (si corre)
+    if [[ -f "$INDEXER_PID_FILE" ]]; then
+        IDX_PID=$(cat "$INDEXER_PID_FILE" 2>/dev/null || echo "")
+        [[ -n "$IDX_PID" ]] && kill "$IDX_PID" 2>/dev/null && ok "Indexador detenido (PID $IDX_PID)" || true
+        rm -f "$INDEXER_PID_FILE"
+    fi
+    # 3. Contenedores Docker
+    CONTAINERS=("ollama-gpu-main" "ollama-cpu-router" "exllamav2-api" "sglang-server" "chromadb" "obsidian-kb" "searxng")
+    info "Deteniendo contenedores: ${CONTAINERS[*]}"
+    docker stop "${CONTAINERS[@]}" 2>/dev/null && ok "Contenedores detenidos" || warn "Algunos contenedores no estaban activos (normal)"
+    docker rm "${CONTAINERS[@]}" 2>/dev/null && ok "Contenedores eliminados" || true
+    ok "Cluster V26 detenido."
+    exit 0
+fi
+
+# ─── [V25-F2] --status ───────────────────────────────────────────────────────
+if [[ "$_FLAG_STATUS" == "true" ]]; then
+    section "Estado del OMEN AI Cluster V26"
+    echo ""
+    # Tabla de servicios: nombre → URL de health check
+    declare -A SVC_URLS=(
+        ["Ollama GPU     :${PORT_OLLAMA_GPU}"]="http://localhost:${PORT_OLLAMA_GPU}/api/tags"
+        ["Ollama CPU     :${PORT_OLLAMA_CPU}"]="http://localhost:${PORT_OLLAMA_CPU}/api/tags"
+        ["TabbAPI EXL2   :${PORT_TABBYAPI}"]="http://localhost:${PORT_TABBYAPI}/health"
+        ["SGLang         :${PORT_SGLANG}"]="http://localhost:${PORT_SGLANG}/health"
+        ["ChromaDB       :${PORT_CHROMADB}"]="http://localhost:${PORT_CHROMADB}/api/v1/heartbeat"
+        ["Obsidian UI    :${PORT_OBSIDIAN}"]="http://localhost:${PORT_OBSIDIAN}"
+        ["SearXNG        :${PORT_SEARXNG}"]="http://localhost:${PORT_SEARXNG}/"  # [V26-F4] raíz: siempre 200 si UP
+        ["Router V14     :${PORT_ROUTER}"]="http://localhost:${PORT_ROUTER}/health"
+    )
+    # Orden fijo para la tabla
+    SVC_ORDER=(
+        "Ollama GPU     :${PORT_OLLAMA_GPU}"
+        "Ollama CPU     :${PORT_OLLAMA_CPU}"
+        "TabbAPI EXL2   :${PORT_TABBYAPI}"
+        "SGLang         :${PORT_SGLANG}"
+        "ChromaDB       :${PORT_CHROMADB}"
+        "Obsidian UI    :${PORT_OBSIDIAN}"
+        "SearXNG        :${PORT_SEARXNG}"
+        "Router V14     :${PORT_ROUTER}"
+    )
+    printf "  %-30s %-10s %s
+" "Servicio" "Puerto" "Estado"
+    printf "  %-30s %-10s %s
+" "──────────────────────────────" "──────────" "──────"
+    for svc in "${SVC_ORDER[@]}"; do
+        url="${SVC_URLS[$svc]}"
+        http_code=$(curl --noproxy "*" --ipv4 -s -m 3 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+        if [[ "$http_code" =~ ^(200|301|302|404)$ ]]; then
+            printf "  ${GRN}${BLD}%-30s %-10s ✔ UP  (HTTP %s)${NC}
+" "$svc" "" "$http_code"
+        else
+            printf "  ${RED}%-30s %-10s ✘ DOWN (HTTP %s)${NC}
+" "$svc" "" "$http_code"
+        fi
+    done
+    echo ""
+    # Estado del router PID
+    if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null; then
+        ok "Router V14 proceso activo (PID $(cat "$PID_FILE"))"
+    else
+        warn "Router V14 no tiene PID activo"
+    fi
+    echo ""
+    info "Métricas:    curl -s http://localhost:${PORT_ROUTER}/metrics | python3 -m json.tool"
+    info "Modelos:     curl -s http://localhost:${PORT_ROUTER}/v1/models | python3 -m json.tool"
+    info "Agent tasks: curl -s http://localhost:${PORT_ROUTER}/v1/agent/tasks"
+    info "Log:         tail -f ${LOG_DIR}/router_v14.log"
+    exit 0
+fi
+
+# ─── [V25-F3] --reindex ──────────────────────────────────────────────────────
+if [[ "$_FLAG_REINDEX" == "true" ]]; then
+    section "Re-indexando vault Obsidian → ChromaDB"
+    if [[ ! -f "$VAULT_INDEXER" ]]; then
+        err "No se encuentra el indexador: $VAULT_INDEXER"
+        exit 1
+    fi
+    # Verificar que ChromaDB esté activo antes de indexar
+    CHROMA_CHECK=$(curl --noproxy "*" -s -m 3 -o /dev/null -w "%{http_code}"         "http://localhost:${PORT_CHROMADB}/api/v1/heartbeat" 2>/dev/null || echo "000")
+    if [[ "$CHROMA_CHECK" != "200" ]]; then
+        warn "ChromaDB no responde en :${PORT_CHROMADB} (HTTP ${CHROMA_CHECK})"
+        warn "Asegúrate de que el cluster esté activo antes de re-indexar"
+        warn "Arrancar cluster: ai_cluster"
+        exit 1
+    fi
+    NOTE_COUNT=$(find "$VAULT_DIR" -name "*.md" 2>/dev/null | wc -l)
+    info "Notas encontradas en vault: ${NOTE_COUNT}"
+    python3 "$VAULT_INDEXER" --clean         && ok "Re-indexación completada (${NOTE_COUNT} notas)"         || { warn "Error en re-indexación — revisa los logs"; exit 1; }
+    exit 0
+fi
+
+# ─── [V25-F4] --warmup ───────────────────────────────────────────────────────
+if [[ "$_FLAG_WARMUP" == "true" ]]; then
+    section "Warmup de modelos Ollama GPU en VRAM"
+    OLLAMA_CHECK=$(curl --noproxy "*" -s -m 3 -o /dev/null -w "%{http_code}"         "http://localhost:${PORT_OLLAMA_GPU}/api/tags" 2>/dev/null || echo "000")
+    if [[ "$OLLAMA_CHECK" != "200" ]]; then
+        err "Ollama GPU no responde en :${PORT_OLLAMA_GPU} — ¿está el cluster activo?"
+        exit 1
+    fi
+    for model in "${OLLAMA_GPU_MODELS[@]}"; do
+        info "Warmup: $model"
+        curl --noproxy "*" -s --max-time 60 -X POST             "http://localhost:${PORT_OLLAMA_GPU}/api/generate"             -d "{"model":"${model}","prompt":"Hola","stream":false,"options":{"num_predict":1}}"             -o /dev/null             && ok "  ${model} → en VRAM"             || warn "  ${model} → warmup falló (¿modelo descargado?)"
+    done
+    exit 0
+fi
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # TRAP EXIT — Graceful shutdown (Solo en caso de error)
 # ═══════════════════════════════════════════════════════════════════════════════
 cleanup() {
     local exit_code="$?"
 
-    # SOLO matar procesos si el script terminó por un ERROR
     if [[ "$exit_code" -ne 0 ]]; then
         warn "Se detectó un error (código $exit_code). Ejecutando limpieza de emergencia..."
-        
-        # Limpiar watchdog si está corriendo
+
         if [[ -n "${WATCHDOG_PID:-}" ]] && kill -0 "$WATCHDOG_PID" 2>/dev/null; then
             kill -TERM "$WATCHDOG_PID" 2>/dev/null || true
         fi
 
-        # Limpiar indexador si está corriendo
         if [[ -f "$INDEXER_PID_FILE" ]]; then
             local idx_pid
             idx_pid=$(cat "$INDEXER_PID_FILE" 2>/dev/null || echo "")
@@ -256,7 +582,6 @@ cleanup() {
             rm -f "$INDEXER_PID_FILE"
         fi
 
-        # Limpiar router
         if [[ -f "$PID_FILE" ]]; then
             local pid
             pid=$(cat "$PID_FILE" 2>/dev/null || echo "")
@@ -283,6 +608,7 @@ cleanup() {
         ok "Autoboot finalizado. Todos los servicios quedan operando en background."
     fi
 }
+
 trap cleanup EXIT
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -292,11 +618,15 @@ section "OMEN AI Cluster — Autoboot V27"
 info "$(date '+%Y-%m-%d %H:%M:%S')"
 echo ""
 
-# Crear directorios necesarios en ext4
 mkdir -p "$AI_HOME" "$LOG_DIR" "$OBSIDIAN_APPDATA" "$AGENT_DATA_DIR"
 
-# Redirigir stdout+stderr al log
 exec > >(tee -a "$LOG_FILE") 2>&1
+if [[ "$PULL_LATEST" == "true" ]]; then
+    info  "Modo: --last (actualizando imágenes :latest antes de arrancar)"
+    info  "NOTA: ChromaDB usa versión pinada 0.6.3 — no se actualiza"
+else
+    info  "Modo: estándar (usando imágenes locales actuales)"
+fi
 info "Log: $LOG_FILE"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -304,24 +634,19 @@ info "Log: $LOG_FILE"
 # ─────────────────────────────────────────────────────────────────────────────
 section "Verificación de SSD exFAT y Permisos"
 
-# 1. Comprobar que el directorio existe en el espejo del HOME
 if [[ ! -d "$AI_CORE" ]]; then
     err "El directorio $AI_CORE no existe."
     err "Verifica que el servicio systemd de BitLocker haya montado la unidad."
     exit 1
 fi
 
-# 2. Comprobar permisos de escritura (Vital para que SGLang/Ollama descarguen/lean)
 if [[ ! -w "$AI_CORE" ]]; then
     err "El directorio $AI_CORE existe, pero está en solo-lectura (read-only)."
     err "Revisa las banderas uid/gid y fmask/dmask en el script de montaje exFAT."
     exit 1
 fi
 
-# Si pasa ambas pruebas, el SSD está montado, mapeado y listo para la inferencia
 ok "Directorio de IA ($AI_CORE) operativo, montado y con permisos correctos."
-
-# Crear vault en exFAT si no existe
 mkdir -p "$VAULT_DIR" 2>/dev/null || warn "No se pudo crear $VAULT_DIR. Ignorando..."
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -329,18 +654,15 @@ mkdir -p "$VAULT_DIR" 2>/dev/null || warn "No se pudo crear $VAULT_DIR. Ignorand
 # ═══════════════════════════════════════════════════════════════════════════════
 section "Comprobaciones previas"
 
-# Herramientas de red
 if ! command -v nc &>/dev/null; then
     warn "netcat (nc) no encontrado — usando /dev/tcp como fallback para wait_port"
 fi
 
-# Docker
 if ! command -v docker &>/dev/null; then
     err "Docker no encontrado. Instala Docker Engine."
     exit 1
 fi
 
-# Versión de Docker
 DOCKER_VERSION=$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo "0.0.0")
 DOCKER_MAJOR=$(echo "$DOCKER_VERSION" | cut -d. -f1)
 DOCKER_MINOR=$(echo "$DOCKER_VERSION" | cut -d. -f2)
@@ -354,13 +676,11 @@ else
     warn "No se pudo determinar la versión de Docker ($DOCKER_VERSION) — continuando"
 fi
 
-# Python
 if ! command -v python3 &>/dev/null; then
     err "python3 no encontrado. Instala Python 3.10+."
     exit 1
 fi
 
-# Versión de Python (3.10+ requerido)
 PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "0.0")
 PYTHON_MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1)
 PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
@@ -388,7 +708,6 @@ if [[ ! -d "$ROUTER_MODULES_DIR" ]] || [[ ! -f "$ROUTER_MODULES_DIR/__init__.py"
     exit 1
 fi
 
-# Verificar sintaxis del router
 if ! python3 -m py_compile "$ROUTER_SCRIPT" 2>/dev/null; then
     err "Error de sintaxis en $ROUTER_SCRIPT — abortando"
     python3 -m py_compile "$ROUTER_SCRIPT" || true
@@ -412,14 +731,12 @@ if (( MODULE_ERRORS > 0 )); then
 fi
 ok "Módulos del router: sintaxis correcta ($(ls "$ROUTER_MODULES_DIR"/*.py | wc -l) ficheros)"
 
-# Permisos de escritura en agent_data/
 if [[ ! -w "$AGENT_DATA_DIR" ]]; then
     err "Sin permisos de escritura en $AGENT_DATA_DIR — el agente no podrá persistir estado"
     exit 1
 fi
 ok "Agent data dir: permisos correctos ($AGENT_DATA_DIR)"
 
-# Validar filesystem de AGENT_DATA_DIR
 if ! validate_filesystem "$AGENT_DATA_DIR" "Agent data dir"; then
     err "AGENT_DATA_DIR ($AGENT_DATA_DIR) está en un filesystem incompatible con SQLite."
     exit 1
@@ -443,7 +760,6 @@ if [[ -d "$AI_CORE" ]]; then
     ok "Espacio en SSD exFAT: ${EXFAT_FREE_MB:-?}MB libres"
 fi
 
-# Verificar NVIDIA
 if command -v nvidia-smi &>/dev/null; then
     VRAM_FREE=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | head -1 || echo "0")
     ok "GPU: VRAM libre = ${VRAM_FREE} MiB"
@@ -459,7 +775,6 @@ if (( LOG_COUNT > MAX_LOG_FILES )); then
     info "Limpiados $((LOG_COUNT - MAX_LOG_FILES)) logs antiguos (mantenidos últimos $MAX_LOG_FILES)"
 fi
 
-# Rotar logs del router también
 ROUTER_LOG_COUNT=$(find "$LOG_DIR" -maxdepth 1 -name "router_v*.log" 2>/dev/null | wc -l)
 if (( ROUTER_LOG_COUNT > 5 )); then
     find "$LOG_DIR" -maxdepth 1 -name "router_v*.log" -printf '%T@ %p\n' 2>/dev/null \
@@ -467,7 +782,6 @@ if (( ROUTER_LOG_COUNT > 5 )); then
     info "Limpiados $((ROUTER_LOG_COUNT - 5)) logs del router antiguos"
 fi
 
-# Backup de agent_tasks.db
 AGENT_DB="$AGENT_DATA_DIR/agent_tasks.db"
 if [[ -f "$AGENT_DB" ]]; then
     DB_INTEGRITY=$(python3 -c "
@@ -491,7 +805,6 @@ except Exception as e:
         cp "$AGENT_DB" "$BACKUP_NAME"
     fi
 
-    # Limpiar backups antiguos (mantener últimos 5)
     find "$AGENT_DATA_DIR" -maxdepth 1 -name "agent_tasks.db.bak_*" -printf '%T@ %p\n' 2>/dev/null \
         | sort -rn | tail -n +6 | cut -d' ' -f2- | xargs rm -f 2>/dev/null || true
 fi
@@ -518,6 +831,11 @@ ok "Comprobaciones previas: ✔"
 # RED DOCKER
 # ═══════════════════════════════════════════════════════════════════════════════
 section "Red Docker: $DOCKER_NET"
+
+# [V23-D1] Limpiar bridges huérfanos ANTES de verificar/crear la red Docker.
+# Evita rutas kernel duplicadas que causan RST / "no route to host" en contenedores.
+cleanup_orphan_bridges "$DOCKER_NET_SUBNET_PREFIX"
+
 if docker network ls --format '{{.Name}}' | grep -qx "$DOCKER_NET"; then
     ok "Red '$DOCKER_NET' ya existe"
 else
@@ -544,15 +862,13 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 section "1/7 — Ollama GPU (:$PORT_OLLAMA_GPU)"
 
-# 1. PRE-CREAR el directorio antes para evitar el error 'chown' del demonio de Docker
 mkdir -p "${MODELS_DIR}/ollama" 2>/dev/null || true
 
 if is_container_running "ollama-gpu-main"; then
     info "Contenedor 'ollama-gpu-main' en ejecución. Reutilizando (ahorrando VRAM)..."
 else
     ensure_container_stopped "ollama-gpu-main"
-
-    # 2. SEPARAR el estado interno (ext4 en Docker) de los pesos (.gguf en exFAT)
+    pull_if_last "$IMG_OLLAMA" "Ollama GPU"
     docker run -d \
         --name ollama-gpu-main \
         --network "$DOCKER_NET" \
@@ -566,12 +882,11 @@ else
         -e OLLAMA_FLASH_ATTENTION=1 \
         -e OLLAMA_NUM_PARALLEL=1 \
         --restart unless-stopped \
-        ollama/ollama:latest
+        $IMG_OLLAMA
 fi
 
 wait_port "Ollama GPU" localhost "$PORT_OLLAMA_GPU" "$TIMEOUT_OLLAMA"
 
-# Pre-pull modelos GPU en background
 GPU_PULL_PIDS=()
 for model in "${OLLAMA_GPU_MODELS[@]}"; do
     if ! docker exec ollama-gpu-main ollama list 2>/dev/null | grep -q "$model"; then
@@ -591,15 +906,13 @@ ok "Ollama GPU ✔ (${#GPU_PULL_PIDS[@]} pulls en background)"
 # ═══════════════════════════════════════════════════════════════════════════════
 section "2/7 — Ollama CPU (:$PORT_OLLAMA_CPU)"
 
-# 1. PRE-CREAR el directorio
 mkdir -p "${MODELS_DIR}/ollama-cpu" 2>/dev/null || true
 
 if is_container_running "ollama-cpu-router"; then
     info "Contenedor 'ollama-cpu-router' en ejecución. Reutilizando estado..."
 else
     ensure_container_stopped "ollama-cpu-router"
-
-    # 2. Omitimos la bandera --gpus y usamos CUDA_VISIBLE_DEVICES="" para aislar la VRAM
+    pull_if_last "$IMG_OLLAMA" "Ollama CPU"
     docker run -d \
         --name ollama-cpu-router \
         --network "$DOCKER_NET" \
@@ -617,7 +930,6 @@ fi
 
 wait_port "Ollama CPU" localhost "$PORT_OLLAMA_CPU" "$TIMEOUT_OLLAMA"
 
-# Pull modelos CPU (bloqueante — necesarios para indexador/router)
 CPU_PULL_PIDS=()
 for model in "${OLLAMA_CPU_MODELS[@]}"; do
     if ! docker exec ollama-cpu-router ollama list 2>/dev/null | grep -q "$model"; then
@@ -630,7 +942,6 @@ for model in "${OLLAMA_CPU_MODELS[@]}"; do
     fi
 done
 
-# Esperar pulls de CPU
 if [[ ${#CPU_PULL_PIDS[@]} -gt 0 ]]; then
     info "Esperando ${#CPU_PULL_PIDS[@]} pull(s) de CPU (necesarios para indexador/router)…"
     local_failed=0
@@ -656,11 +967,29 @@ section "3/7 — TabbAPI ExLlamaV2 (:$PORT_TABBYAPI)"
 EXL2_CHAT="${MODELS_DIR}/llama-3.1-8b-exl2"
 EXL2_CODER="${MODELS_DIR}/qwen2.5-coder-7b-exl2"
 
-if [[ -d "$EXL2_CHAT" ]] || [[ -d "$EXL2_CODER" ]]; then
+# [V27-S1] En modo --sglang, detener TabbAPI para liberar VRAM
+if [[ "$_FLAG_SGLANG" == "true" ]]; then
     if is_container_running "exllamav2-api"; then
-        info "Contenedor 'exllamav2-api' en ejecución. Reutilizando (ahorrando VRAM)..."
+        info "[--sglang] Deteniendo TabbAPI para liberar VRAM (~6.9GB)…"
+        docker stop exllamav2-api >/dev/null 2>&1 || true
+        docker rm   exllamav2-api >/dev/null 2>&1 || true
+        ok "TabbAPI detenido — VRAM liberada para SGLang"
     else
+        info "[--sglang] TabbAPI no estaba activo — nada que detener"
+    fi
+    warn "TabbAPI omitido en modo --sglang (nivel chat/instantaneo no disponible)"
+elif [[ -d "$EXL2_CHAT" ]] || [[ -d "$EXL2_CODER" ]]; then
+    # [V26-F1] Si el contenedor existe, verificar que la API HTTP responde antes de reutilizar
+    TABBY_HEALTH=$(curl --noproxy "*" --ipv4 -s -m 3 -o /dev/null -w "%{http_code}" \
+        "http://localhost:${PORT_TABBYAPI}/health" 2>/dev/null || echo "000")
+    if is_container_running "exllamav2-api" && [[ "$TABBY_HEALTH" == "200" ]]; then
+        info "Contenedor 'exllamav2-api' en ejecución y respondiendo (HTTP 200). Reutilizando..."
+    else
+        if is_container_running "exllamav2-api"; then
+            info "Contenedor 'exllamav2-api' existe pero API no responde (HTTP ${TABBY_HEALTH}) — recreando..."
+        fi
         ensure_container_stopped "exllamav2-api"
+        pull_if_last "$IMG_TABBYAPI" "TabbAPI ExLlamaV2"
         docker run -d \
             --name exllamav2-api \
             --network "$DOCKER_NET" \
@@ -668,42 +997,71 @@ if [[ -d "$EXL2_CHAT" ]] || [[ -d "$EXL2_CODER" ]]; then
             -p "${PORT_TABBYAPI}:5000" \
             -v "${MODELS_DIR}:/models:ro" \
             --restart unless-stopped \
-            ghcr.io/theroyallab/tabbyapi:latest \
+            $IMG_TABBYAPI \
             --model-dir /models \
             --model "llama-3.1-8b-exl2" \
             --max-seq-len 8192 \
             --tensor-parallel 1 \
             --port 5000
-    fi
+    fi  # cierra: if is_container_running && health 200 ... else ... fi
 
-    if wait_port "TabbAPI" localhost "$PORT_TABBYAPI" "$TIMEOUT_TABBYAPI"; then
-        ok "TabbAPI ExLlamaV2 ✔"
+    # [V26-F2a] Health-check HTTP real (no TCP): TabbyAPI necesita tiempo para cargar el modelo EXL2
+    TABBY_READY=false
+    info "Esperando que TabbAPI cargue el modelo EXL2 en localhost:${PORT_TABBYAPI}… (máx ${TIMEOUT_TABBYAPI}s)"
+    for _retry in $(seq 1 "$TIMEOUT_TABBYAPI"); do
+        if ! docker ps --format '{{.Names}}' | grep -qx "exllamav2-api"; then
+            err "Contenedor 'exllamav2-api' ya no está en ejecución. Revisa: docker logs exllamav2-api"
+            break
+        fi
+        TABBY_HTTP=$(curl --noproxy "*" --ipv4 -s -m 2 -o /dev/null -w "%{http_code}" \
+            "http://localhost:${PORT_TABBYAPI}/health" 2>/dev/null || echo "000")
+        if [[ "$TABBY_HTTP" == "200" ]]; then
+            TABBY_READY=true
+            break
+        fi
+        sleep 1
+    done
+    if [[ "$TABBY_READY" == "true" ]]; then
+        ok "TabbAPI ExLlamaV2 ✔ — API lista (puerto ${PORT_TABBYAPI})"
     else
-        warn "TabbAPI no respondió — niveles CHAT/INSTANTANEO no disponibles"
+        warn "TabbAPI no respondió tras ${TIMEOUT_TABBYAPI}s (último HTTP: ${TABBY_HTTP:-000})"
+        warn "Revisa: docker logs exllamav2-api --tail 30"
         docker logs --tail=20 exllamav2-api 2>&1 || true
     fi
 else
     warn "Modelos EXL2 no encontrados en $MODELS_DIR — omitiendo TabbAPI"
-fi
+fi  # fin if _FLAG_SGLANG / elif modelos EXL2
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 4. SGLang (:30000) — [V21-B3] Timeout aumentado, [V21-B9] Verificación de modelo
+# 4. SGLang (:30000) — [V21-B3] Timeout aumentado, [V21-B9] Verificación modelo
 # ═══════════════════════════════════════════════════════════════════════════════
 section "4/7 — SGLang (:$PORT_SGLANG)"
 
 SGLANG_MODEL="${MODELS_DIR}/llama-3.1-8b-awq"
 
-# [V21-B9] Verificar que el modelo existe antes de intentar arrancar
-if [[ -d "$SGLANG_MODEL" ]]; then
-    # Verificar que contiene ficheros de modelo (al menos config.json o similar)
+# [V27-S1/S2] SGLang solo arranca con --sglang. Sin el flag: modo default → omitir.
+if [[ "$_FLAG_SGLANG" != "true" ]]; then
+    # Modo default: limpiar contenedor residual si existiera
+    if is_container_running "sglang-server"; then
+        info "Modo default: deteniendo sglang-server residual para liberar VRAM…"
+        docker stop sglang-server >/dev/null 2>&1 || true
+        docker rm   sglang-server >/dev/null 2>&1 || true
+    elif docker ps -a --format '{{.Names}}' | grep -qx "sglang-server"; then
+        docker rm sglang-server >/dev/null 2>&1 || true
+    fi
+    warn "SGLang omitido (modo default; VRAM reservada a TabbAPI). Usa --sglang para activarlo."
+elif [[ -d "$SGLANG_MODEL" ]]; then
+    # [V27-S2] En modo --sglang TabbAPI ya fue detenido → VRAM disponible
     if [[ ! -f "$SGLANG_MODEL/config.json" ]] && [[ ! -f "$SGLANG_MODEL/model.safetensors.index.json" ]]; then
-        warn "Directorio $SGLANG_MODEL existe pero no contiene ficheros de modelo"
+        warn "Directorio $SGLANG_MODEL existe pero no contiene ficheros de modelo reconocibles"
     fi
 
     if is_container_running "sglang-server"; then
         info "Contenedor 'sglang-server' en ejecución. Reutilizando (ahorrando VRAM)..."
     else
         ensure_container_stopped "sglang-server"
+        pull_if_last "$IMG_SGLANG" "SGLang"
+        # [V27-S2] Parámetros conservadores: mem-fraction 0.50, max-tokens 16384, sin torch-compile
         docker run -d \
             --name sglang-server \
             --network "$DOCKER_NET" \
@@ -712,24 +1070,40 @@ if [[ -d "$SGLANG_MODEL" ]]; then
             -v "${MODELS_DIR}:/models:ro" \
             --ipc=host \
             --restart unless-stopped \
-            lmsysorg/sglang:latest \
+            $IMG_SGLANG \
             python3 -m sglang.launch_server \
-                --model-path "/models/llama-3.1-8b-awq" \
-                --port 30000 \
-                --host 0.0.0.0 \
-                --dtype float16 \
-                --quantization awq \
-                --max-total-tokens 32768 \
-                --tp-size 1 \
-                --enable-torch-compile \
-                --trust-remote-code
+            --model-path "/models/llama-3.1-8b-awq" \
+            --port 30000 \
+            --host 0.0.0.0 \
+            --dtype float16 \
+            --quantization awq \
+            --max-total-tokens 16384 \
+            --mem-fraction-static 0.50 \
+            --tp-size 1 \
+            --trust-remote-code
     fi
 
-    # [V21-B3] Timeout aumentado a 240s para primera carga
-    if wait_port "SGLang" localhost "$PORT_SGLANG" "$TIMEOUT_SGLANG"; then
-        ok "SGLang ✔"
+    # [V26-F2b][V27] Health-check HTTP puro — SGLang tarda en cargar pesos AWQ
+    SGLANG_READY=false
+    info "Esperando que SGLang inicialice su API HTTP en localhost:${PORT_SGLANG}… (máx ${TIMEOUT_SGLANG}s)"
+    for _retry in $(seq 1 "$TIMEOUT_SGLANG"); do
+        if ! docker ps --format '{{.Names}}' | grep -qx "sglang-server"; then
+            err "Contenedor 'sglang-server' ya no está en ejecución. Revisa: docker logs sglang-server"
+            break
+        fi
+        SGLANG_HTTP=$(curl --noproxy "*" --ipv4 -s -m 2 -o /dev/null -w "%{http_code}" \
+            "http://localhost:${PORT_SGLANG}/health" 2>/dev/null || echo "000")
+        if [[ "$SGLANG_HTTP" == "200" ]]; then
+            SGLANG_READY=true
+            break
+        fi
+        sleep 1
+    done
+    if [[ "$SGLANG_READY" == "true" ]]; then
+        ok "SGLang ✔ — API lista (puerto ${PORT_SGLANG})"
     else
-        warn "SGLang no respondió en ${TIMEOUT_SGLANG}s — nivel AGIL no disponible"
+        warn "SGLang no respondió tras ${TIMEOUT_SGLANG}s (último HTTP: ${SGLANG_HTTP:-000})"
+        warn "Revisa: docker logs sglang-server --tail 30"
         docker logs --tail=20 sglang-server 2>&1 || true
     fi
 else
@@ -738,8 +1112,14 @@ fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 5. CHROMADB (:8001)
+# [V22-C1] Imagen pinada a 0.6.3 (estable)
+# [V22-C2] Endpoint corregido a /api/v1/heartbeat
+# [V22-C3] Variable CHROMA_SERVER_HTTP_PORT=8000 añadida
+# [V22-C4] Volumen mapeado a /chroma/chroma (correcto para 0.6.x)
+# [V22-C5] Health check HTTP puro — sin waitport (elimina falso positivo TCP) — sin cambios en V23
 # ═══════════════════════════════════════════════════════════════════════════════
 section "5/7 — ChromaDB (:$PORT_CHROMADB)"
+# [V24-E1] ChromaDB NO se actualiza con --last — versión pinada $IMG_CHROMADB
 
 if is_container_running "chromadb"; then
     info "Contenedor 'chromadb' en ejecución. Reutilizando estado de memoria..."
@@ -753,50 +1133,49 @@ else
         -e IS_PERSISTENT=TRUE \
         -e ANONYMIZED_TELEMETRY=FALSE \
         -e CHROMA_SERVER_HOST=0.0.0.0 \
+        -e CHROMA_SERVER_HTTP_PORT=8000 \
         --restart unless-stopped \
-        ghcr.io/chroma-core/chroma:latest
+        $IMG_CHROMADB
 fi
 
+# [V22-C5] Health check HTTP puro: no usamos wait_port (TCP != HTTP listo).
+# ChromaDB 0.6.3 abre el socket TCP antes de que uvicorn esté ready.
+# Sondeamos directamente la API HTTP con reintentos cada 1s.
 CHROMADB_READY=false
-MAX_RETRIES=$TIMEOUT_CHROMADB
-RETRY_COUNT=0
-info "Esperando que ChromaDB inicialice su API HTTP en 127.0.0.1:${PORT_CHROMADB}..."
+CHROMA_STATUS="000"
+info "Esperando que ChromaDB inicialice su API HTTP en 127.0.0.1:${PORT_CHROMADB}… (máx ${TIMEOUT_CHROMADB}s)"
 
-while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if wait_port "ChromaDB" 127.0.0.1 "$PORT_CHROMADB" "$((MAX_RETRIES - RETRY_COUNT))"; then
-        CHROMA_STATUS=$(get_http_status "http://127.0.0.1:${PORT_CHROMADB}/api/v2/heartbeat")
-    else
-        CHROMA_STATUS="000"
-    fi
-
-    if [ "$CHROMA_STATUS" = "200" ]; then
-        CHROMADB_READY=true
-        break
-    fi
-
-    if docker ps --format '{{.Names}}' | grep -qx "chromadb"; then
-        # Comprobar desde un contenedor temporal en la misma red Docker (evita depender de utilidades dentro de chromadb)
-        INTERNAL_STATUS=$(docker run --rm --network "$DOCKER_NET" curlimages/curl:latest --connect-timeout 3 --ipv4 -s -o /dev/null -w "%{http_code}" http://chromadb:8000/api/v2/heartbeat 2>/dev/null || echo "000")
-
-        if [ "$INTERNAL_STATUS" = "200" ]; then
-            info "ChromaDB responde desde la red interna (http://chromadb:8000) pero el host forwarding en 127.0.0.1:${PORT_CHROMADB} aún no está listo."
-        else
-            info "ChromaDB interno (red Docker) todavía no está listo (HTTP ${INTERNAL_STATUS})."
-        fi
-    else
+for _retry in $(seq 1 "$TIMEOUT_CHROMADB"); do
+    # Verificar que el contenedor sigue vivo
+    if ! docker ps --format '{{.Names}}' | grep -qx "chromadb"; then
         err "Contenedor 'chromadb' ya no está en ejecución. Revisa: docker logs chromadb"
         break
     fi
 
-    RETRY_COUNT=$((RETRY_COUNT + 1))
+    CHROMA_STATUS=$(get_http_status "http://127.0.0.1:${PORT_CHROMADB}/api/v1/heartbeat")
+    if [[ "$CHROMA_STATUS" == "200" ]]; then
+        CHROMADB_READY=true
+        break
+    fi
     sleep 1
 done
 
-if [ "$CHROMADB_READY" = true ] || [ "$CHROMADB_READY" = "true" ]; then
-    ok "ChromaDB ✔ — API lista en ${RETRY_COUNT}s (puerto ${PORT_CHROMADB})"
+if [[ "$CHROMADB_READY" == "true" ]]; then
+    ok "ChromaDB ✔ — API lista (puerto ${PORT_CHROMADB})"
 else
-    warn "ChromaDB API no respondió tras ${MAX_RETRIES}s (último estado: ${CHROMA_STATUS:-000})"
+    warn "ChromaDB puerto abierto pero API no respondió tras ${TIMEOUT_CHROMADB}s (Estado: ${CHROMA_STATUS})"
     warn "Revisa: docker logs chromadb --tail 30"
+    # [V22-C6] Diagnóstico adicional vía red interna Docker (usa /api/v1/heartbeat)
+    INTERNAL_STATUS=$(docker run --rm --network "$DOCKER_NET" \
+        $IMG_CURL \
+        --connect-timeout 3 --ipv4 -s -o /dev/null -w "%{http_code}" \
+        "http://chromadb:8000/api/v1/heartbeat" 2>/dev/null || echo "000")
+    if [[ "$INTERNAL_STATUS" == "200" ]]; then
+        warn "ChromaDB responde internamente (red Docker) pero el host forwarding aún no está listo."
+        warn "Espera unos segundos y comprueba: curl http://127.0.0.1:${PORT_CHROMADB}/api/v1/heartbeat"
+    else
+        warn "ChromaDB interno (red Docker) tampoco responde (HTTP ${INTERNAL_STATUS})."
+    fi
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -808,6 +1187,7 @@ if is_container_running "obsidian-kb"; then
     info "Contenedor 'obsidian-kb' en ejecución. Reutilizando estado..."
 else
     ensure_container_stopped "obsidian-kb"
+    pull_if_last "$IMG_OBSIDIAN" "Obsidian"
     docker run -d \
         --name obsidian-kb \
         --network "$DOCKER_NET" \
@@ -818,7 +1198,7 @@ else
         -e PUID="$(id -u)" \
         -e PGID="$(id -g)" \
         --restart unless-stopped \
-        linuxserver/obsidian:latest
+        $IMG_OBSIDIAN
 fi
 
 if wait_port "Obsidian" localhost "$PORT_OBSIDIAN" "$TIMEOUT_OBSIDIAN"; then
@@ -832,7 +1212,6 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 section "7/7 — SearXNG (:$PORT_SEARXNG)"
 
-# Generar o recuperar secret_key persistente
 if [[ ! -f "$SEARXNG_SECRET_FILE" ]]; then
     openssl rand -hex 32 > "$SEARXNG_SECRET_FILE"
     chmod 600 "$SEARXNG_SECRET_FILE"
@@ -843,9 +1222,8 @@ else
 fi
 SEARXNG_SECRET=$(cat "$SEARXNG_SECRET_FILE")
 
-# Generar settings.yml si no existe
 if [[ ! -f "$SEARXNG_SETTINGS" ]]; then
-cat > "$SEARXNG_SETTINGS" << YAML_EOF
+    cat > "$SEARXNG_SETTINGS" << YAML_EOF
 use_default_settings: true
 general:
   debug: false
@@ -892,6 +1270,7 @@ if is_container_running "searxng"; then
     info "Contenedor 'searxng' en ejecución. Reutilizando estado..."
 else
     ensure_container_stopped "searxng"
+    pull_if_last "$IMG_SEARXNG" "SearXNG"
     docker run -d \
         --name searxng \
         --network "$DOCKER_NET" \
@@ -899,7 +1278,7 @@ else
         -v "${SEARXNG_SETTINGS}:/etc/searxng/settings.yml:ro" \
         -e SEARXNG_SECRET_KEY="${SEARXNG_SECRET}" \
         --restart unless-stopped \
-        searxng/searxng:latest
+        $IMG_SEARXNG
 fi
 
 if wait_port "SearXNG" localhost "$PORT_SEARXNG" "$TIMEOUT_SEARXNG"; then
@@ -910,23 +1289,35 @@ fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # INDEXACIÓN VAULT — [V21-B2] Actualizado a V6
+# [V22-C7] Retry HTTP breve para Ollama CPU antes de evaluar condiciones
 # ═══════════════════════════════════════════════════════════════════════════════
 section "Indexación Vault Obsidian"
 
 if [[ -f "$VAULT_INDEXER" ]]; then
-    # Usando el helper blindado (con retry breve)
+    # [V22-C7] Usar CHROMA_STATUS del bloque anterior si ya fue 200;
+    # si no, hacer un retry rápido antes de descartar la indexación.
+    if [[ "${CHROMA_STATUS:-000}" != "200" ]]; then
+        info "Reintentando heartbeat de ChromaDB antes de evaluar indexación…"
+        for _i in $(seq 1 5); do
+            CHROMA_STATUS=$(get_http_status "http://127.0.0.1:${PORT_CHROMADB}/api/v1/heartbeat")
+            [[ "$CHROMA_STATUS" == "200" ]] && break
+            sleep 2
+        done
+    fi
+
+    # Retry HTTP breve para Ollama CPU (el wait_port TCP no garantiza HTTP listo)
     OLLAMA_CPU_STATUS="000"
     for _i in $(seq 1 10); do
         OLLAMA_CPU_STATUS=$(get_http_status "http://localhost:${PORT_OLLAMA_CPU}/")
-        [ "$OLLAMA_CPU_STATUS" = "200" ] && break
+        [[ "$OLLAMA_CPU_STATUS" == "200" ]] && break
         sleep 2
     done
 
-    # Limpiar variables nulas por seguridad
-    if [[ "$CHROMA_STATUS" != "200" ]]; then CHROMA_STATUS="000"; fi
-    if [[ "$OLLAMA_CPU_STATUS" != "200" ]]; then OLLAMA_CPU_STATUS="000"; fi
+    # Normalizar estados
+    [[ "$CHROMA_STATUS"     != "200" ]] && CHROMA_STATUS="000"
+    [[ "$OLLAMA_CPU_STATUS" != "200" ]] && OLLAMA_CPU_STATUS="000"
 
-    if [ "$CHROMA_STATUS" = "200" ] && [ "$OLLAMA_CPU_STATUS" = "200" ]; then
+    if [[ "$CHROMA_STATUS" == "200" ]] && [[ "$OLLAMA_CPU_STATUS" == "200" ]]; then
         ok "Motores validados. Iniciando indexación automática de la bóveda..."
         python3 "$VAULT_INDEXER" \
             --vault-dir "$VAULT_DIR" \
@@ -980,7 +1371,6 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 section "Router V14 (FastAPI + Agent :$PORT_ROUTER)"
 
-# Matar instancia previa si existe (Ahora blindado contra set -e)
 if [[ -f "$PID_FILE" ]]; then
     OLD_PID=$(cat "$PID_FILE" 2>/dev/null || echo "")
     if [[ -n "$OLD_PID" ]]; then
@@ -1003,7 +1393,6 @@ if [[ -f "$PID_FILE" ]]; then
     rm -f "$PID_FILE"
 fi
 
-# Asegurar que el puerto está libre
 if ss -tlnp 2>/dev/null | grep -q ":${PORT_ROUTER} "; then
     warn "Puerto $PORT_ROUTER ocupado — identificando proceso…"
     BLOCKING_PID=$(ss -tlnp 2>/dev/null | grep ":${PORT_ROUTER} " | grep -oP 'pid=\K[0-9]+' | head -1)
@@ -1032,11 +1421,9 @@ if ss -tlnp 2>/dev/null | grep -q ":${PORT_ROUTER} "; then
     sleep 2
 fi
 
-# Exportar variables de entorno para el router
 export AGENT_DB_DIR="$AGENT_DATA_DIR"
 export ROUTER_PORT="$PORT_ROUTER"
 
-# Esperar pulls de GPU si aún están corriendo
 if [[ ${#GPU_PULL_PIDS[@]} -gt 0 ]]; then
     info "Verificando pulls de GPU en background…"
     for pid in "${GPU_PULL_PIDS[@]}"; do
@@ -1046,7 +1433,6 @@ if [[ ${#GPU_PULL_PIDS[@]} -gt 0 ]]; then
     done
 fi
 
-# Lanzar router V14
 PYTHONUNBUFFERED=1 AGENT_DB_DIR="$AGENT_DATA_DIR" ROUTER_PORT="$PORT_ROUTER" \
     python3 "$ROUTER_SCRIPT" \
     >> "$LOG_DIR/router_v14.log" 2>&1 &
@@ -1054,11 +1440,10 @@ ROUTER_PID=$!
 echo "$ROUTER_PID" > "$PID_FILE"
 info "Router V14 lanzado — PID=$ROUTER_PID"
 
-# Health check con reintentos
 ROUTER_READY=false
 HEALTH_ATTEMPTS=0
 for i in $(seq 1 $((TIMEOUT_ROUTER_HEALTH / 2))); do
-    HEALTH_ATTEMPTS=$((HEALTH_ATTEMPTS + 1)) # SINTAXIS SEGURA (Evita el crash de set -e)
+    HEALTH_ATTEMPTS=$((HEALTH_ATTEMPTS + 1))
     if curl -sf "http://localhost:${PORT_ROUTER}/health" >/dev/null 2>&1; then
         ROUTER_READY=true
         break
@@ -1094,12 +1479,10 @@ if [[ "$WATCHDOG_ENABLED" == "true" ]]; then
     section "Watchdog post-arranque"
     info "Watchdog activado (intervalo: ${WATCHDOG_INTERVAL}s)"
 
-    # Función watchdog en background
     watchdog_loop() {
         while true; do
             sleep "$WATCHDOG_INTERVAL"
 
-            # Verificar router
             if [[ -f "$PID_FILE" ]]; then
                 local r_pid
                 r_pid=$(cat "$PID_FILE" 2>/dev/null || echo "")
@@ -1112,7 +1495,6 @@ if [[ "$WATCHDOG_ENABLED" == "true" ]]; then
                 fi
             fi
 
-            # Verificar contenedores Docker con restart policy
             for container in ollama-gpu-main ollama-cpu-router chromadb; do
                 if ! docker ps --format '{{.Names}}' | grep -qx "$container"; then
                     echo "[WATCHDOG $(date '+%H:%M:%S')] Contenedor $container no está running" >> "$LOG_DIR/watchdog.log"
@@ -1133,38 +1515,70 @@ fi
 section "Resumen del Cluster V27"
 
 echo ""
+# [V27-S3] Modo VRAM activo
+if [[ "$_FLAG_SGLANG" == "true" ]]; then
+    echo -e "  Modo VRAM:  ${BLD}--sglang${NC} (SGLang activo, TabbAPI detenido)"
+else
+    echo -e "  Modo VRAM:  ${BLD}default${NC}  (TabbAPI activo — usa --sglang para SGLang)"
+fi
+echo ""
 printf "%-30s %-12s %s\n" "Servicio" "Puerto" "Estado"
 printf "%-30s %-12s %s\n" "──────────────────────────────" "────────────" "──────"
 
+# [V26-F3] check_service usa HTTP real (no TCP) para detectar estado verdadero de la API
+# Tabla de endpoints de health por puerto
+_health_url() {
+    local port="$1"
+    case "$port" in
+        "$PORT_OLLAMA_GPU"|"$PORT_OLLAMA_CPU") echo "http://localhost:${port}/api/tags" ;;
+        "$PORT_TABBYAPI")  echo "http://localhost:${port}/health" ;;
+        "$PORT_SGLANG")    echo "http://localhost:${port}/health" ;;
+        "$PORT_CHROMADB")  echo "http://localhost:${port}/api/v1/heartbeat" ;;
+        "$PORT_OBSIDIAN")  echo "http://localhost:${port}" ;;
+        "$PORT_SEARXNG")   echo "http://localhost:${port}/" ;;
+        "$PORT_ROUTER")    echo "http://localhost:${port}/health" ;;
+        *)                 echo "http://localhost:${port}" ;;
+    esac
+}
+
 check_service() {
     local name="$1" host="$2" port="$3"
-    if command -v nc &>/dev/null; then
-        if nc -z "$host" "$port" 2>/dev/null; then
-            printf "%-30s %-12s %b\n" "$name" ":$port" "${GRN}✔ OK${NC}"
-        else
-            printf "%-30s %-12s %b\n" "$name" ":$port" "${YEL}⚠ no disponible${NC}"
-        fi
+    local url
+    url=$(_health_url "$port")
+    local http_code
+    http_code=$(curl --noproxy "*" --ipv4 -s -m 3 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+    if [[ "$http_code" =~ ^(200|301|302)$ ]]; then
+        printf "%-30s %-12s %b\n" "$name" ":$port" "${GRN}✔ OK${NC}"
     else
-        if (echo >/dev/tcp/"$host"/"$port") 2>/dev/null; then
-            printf "%-30s %-12s %b\n" "$name" ":$port" "${GRN}✔ OK${NC}"
-        else
-            printf "%-30s %-12s %b\n" "$name" ":$port" "${YEL}⚠ no disponible${NC}"
-        fi
+        printf "%-30s %-12s %b\n" "$name" ":$port" "${YEL}⚠ no disponible${NC}"
     fi
 }
 
-check_service "Ollama GPU (main)"       localhost "$PORT_OLLAMA_GPU"
-check_service "Ollama CPU (router/emb)" localhost "$PORT_OLLAMA_CPU"
-if docker ps --format '{{.Names}}' | grep -qx "exllamav2-api"; then
-    check_service "TabbAPI ExLlamaV2"       localhost "$PORT_TABBYAPI"
+check_service "Ollama GPU (main)"        localhost    "$PORT_OLLAMA_GPU"
+check_service "Ollama CPU (router/emb)"  localhost    "$PORT_OLLAMA_CPU"
+
+# [V27-S3] TabbAPI: distingue modo --sglang, "no arrancado" y "no disponible"
+if [[ "$_FLAG_SGLANG" == "true" ]]; then
+    printf "%-30s %-12s %b\n" "TabbAPI ExLlamaV2" ":${PORT_TABBYAPI}" "${YEL}— omitido (modo --sglang)${NC}"
+elif docker ps --format '{{.Names}}' | grep -qx "exllamav2-api"; then
+    check_service "TabbAPI ExLlamaV2"    localhost    "$PORT_TABBYAPI"
 else
     printf "%-30s %-12s %b\n" "TabbAPI ExLlamaV2" ":${PORT_TABBYAPI}" "${YEL}— modelos EXL2 no instalados${NC}"
 fi
-check_service "SGLang"                  localhost "$PORT_SGLANG"
-check_service "ChromaDB"                127.0.0.1 "$PORT_CHROMADB"
-check_service "Obsidian Web UI"         localhost "$PORT_OBSIDIAN"
-check_service "SearXNG"                 localhost "$PORT_SEARXNG"
-check_service "Router V14 (Agent)"      localhost "$PORT_ROUTER"
+
+# [V27-S3] SGLang: distingue modo --sglang y disponibilidad real
+if [[ "$_FLAG_SGLANG" != "true" ]]; then
+    printf "%-30s %-12s %b\n" "SGLang" ":${PORT_SGLANG}" "${YEL}— omitido (modo default; usa --sglang)${NC}"
+elif docker ps --format '{{.Names}}' | grep -qx "sglang-server"; then
+    check_service "SGLang"               localhost    "$PORT_SGLANG"
+else
+    printf "%-30s %-12s %b\n" "SGLang" ":${PORT_SGLANG}" "${YEL}— modelo AWQ no instalado${NC}"
+fi
+
+check_service "ChromaDB"                 127.0.0.1   "$PORT_CHROMADB"
+check_service "Obsidian Web UI"          localhost    "$PORT_OBSIDIAN"
+check_service "SearXNG"                  localhost    "$PORT_SEARXNG"
+check_service "Router V14 (Agent)"       localhost    "$PORT_ROUTER"
 
 echo ""
 echo -e "${BLD}Configuración OpenClaw (OpenWebUI):${NC}"
@@ -1188,6 +1602,16 @@ echo "  Métricas router:  curl -s http://localhost:${PORT_ROUTER}/metrics | pyt
 echo "  Health check:     curl -s http://localhost:${PORT_ROUTER}/health | python3 -m json.tool"
 echo "  Detener router:   kill \$(cat $PID_FILE)"
 echo "  Parar cluster:    docker stop ollama-gpu-main ollama-cpu-router exllamav2-api sglang-server chromadb obsidian-kb searxng"
+echo "  Heartbeat chroma: curl -s http://127.0.0.1:${PORT_CHROMADB}/api/v1/heartbeat"
+echo ""
+echo -e "${BLD}Flags del script:${NC}"
+echo "  ai_cluster            Arranque estándar (imágenes locales)"
+echo "  ai_cluster --last     Actualiza imágenes :latest antes de arrancar"
+echo "  ai_cluster --stop     Para el cluster ordenadamente"
+echo "  ai_cluster --status   Estado en tiempo real de todos los servicios"
+echo "  ai_cluster --reindex  Re-indexa el vault Obsidian en ChromaDB"
+echo "  ai_cluster --warmup   Carga modelos GPU en VRAM"
+echo "  ai_cluster --help     Muestra la ayuda completa"
 if [[ "$WATCHDOG_ENABLED" == "true" ]]; then
     echo "  Watchdog:         tail -f $LOG_DIR/watchdog.log"
     echo "  Desactivar:       export OMEN_WATCHDOG=false"
