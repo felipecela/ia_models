@@ -78,7 +78,7 @@ PORT_ROUTER=8000
 TIMEOUT_OLLAMA=90
 TIMEOUT_TABBYAPI=120
 TIMEOUT_SGLANG=240                                      # [V21-B3] Aumentado de 120 a 240 para primera carga
-TIMEOUT_CHROMADB=60
+TIMEOUT_CHROMADB=120
 TIMEOUT_OBSIDIAN=60
 TIMEOUT_SEARXNG=60
 TIMEOUT_ROUTER_HEALTH=60
@@ -147,8 +147,8 @@ wait_port() {
 get_http_status() {
     local url="$1"
     local code
-    # curl SIN forzar IPv4, SIN PROXY, max 3 segundos.
-    code=$(curl --noproxy "*" -s -m 3 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+    # curl FORZADO a IPv4, SIN PROXY, HTTP/1.1, max 3 segundos.
+    code=$(curl --noproxy "*" --ipv4 --http1.1 -s -m 3 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
     echo "${code: -3}"
 }
 
@@ -745,31 +745,33 @@ if is_container_running "chromadb"; then
     info "Contenedor 'chromadb' en ejecución. Reutilizando estado de memoria..."
 else
     ensure_container_stopped "chromadb"
+    
     docker run -d \
         --name chromadb \
         --network "$DOCKER_NET" \
         -p "${PORT_CHROMADB}:8000" \
-        -v chromadb_data:/chroma/chroma \
-        -e IS_PERSISTENT=TRUE \
-        -e ANONYMIZED_TELEMETRY=FALSE \
+            -v chromadb_data:/chroma/chroma \
+            -e IS_PERSISTENT=TRUE \
+            -e ANONYMIZED_TELEMETRY=FALSE \
+            -e CHROMA_SERVER_HOST=0.0.0.0 \
+            -e CHROMA_SERVER_HTTP_PORT=8000 \
         --restart unless-stopped \
-        ghcr.io/chroma-core/chroma:latest
+            ghcr.io/chroma-core/chroma:0.6.3
 fi
 
 CHROMADB_READY=false
-MAX_RETRIES=60
+MAX_RETRIES=$TIMEOUT_CHROMADB
 RETRY_COUNT=0
-info "Esperando que ChromaDB inicialice su API HTTP en localhost:${PORT_CHROMADB}..."
+info "Esperando que ChromaDB inicialice su API HTTP en 127.0.0.1:${PORT_CHROMADB}..."
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    # Usando localhost y la ruta oficial v1
-    CHROMA_STATUS=$(get_http_status "http://localhost:${PORT_CHROMADB}/api/v2/heartbeat")
-    
+        CHROMA_STATUS=$(get_http_status "http://127.0.0.1:${PORT_CHROMADB}/api/v1/heartbeat")
+
     if [ "$CHROMA_STATUS" = "200" ]; then
         CHROMADB_READY=true
         break
     fi
-    
+
     if ! docker ps --format '{{.Names}}' | grep -qx "chromadb"; then
         err "Contenedor 'chromadb' ya no está en ejecución. Revisa: docker logs chromadb"
         break
@@ -1148,7 +1150,7 @@ else
     printf "%-30s %-12s %b\n" "TabbAPI ExLlamaV2" ":${PORT_TABBYAPI}" "${YEL}— modelos EXL2 no instalados${NC}"
 fi
 check_service "SGLang"                  localhost "$PORT_SGLANG"
-check_service "ChromaDB"                localhost "$PORT_CHROMADB"
+check_service "ChromaDB"                127.0.0.1 "$PORT_CHROMADB"
 check_service "Obsidian Web UI"         localhost "$PORT_OBSIDIAN"
 check_service "SearXNG"                 localhost "$PORT_SEARXNG"
 check_service "Router V14 (Agent)"      localhost "$PORT_ROUTER"
