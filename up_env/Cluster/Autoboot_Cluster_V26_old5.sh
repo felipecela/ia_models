@@ -1081,46 +1081,51 @@ if [[ -d "$SGLANG_MODEL" ]]; then
                 --tp-size 1 \
                 --trust-remote-code
         else
-            # [V26-FIX-SG2] AWQ no puede ejecutarse en CPU (solo CUDA/HIP/XPU).
-            # float32+AWQ → ValueError; float16+AWQ+cpu → también falla en SGLang.
-            # Con VRAM < 4096 MiB coexistiendo con TabbAPI+Ollama no hay opción viable.
-            # → Omitir SGLang y registrar motivo claro. No arrancar contenedor condenado.
-            warn "VRAM insuficiente (${VRAM_FREE_NOW} MiB < 4096 MiB) para SGLang+AWQ."
-            warn "AWQ solo funciona con CUDA. SGLang omitido hasta que haya VRAM libre."
-            warn "Para liberar VRAM: detén TabbAPI (docker stop exllamav2-api) y relanza."
-            SGLANG_SKIP_NO_VRAM=true
-            # Limpiar contenedor anterior si existe (estaba en bucle crash-restart)
-            ensure_container_stopped "sglang-server" 2>/dev/null || true
+            # CPU fallback: VRAM insuficiente para coexistir con TabbAPI+Ollama
+            warn "VRAM libre insuficiente (${VRAM_FREE_NOW} MiB < 4096 MiB). Arrancando SGLang en CPU..."
+            docker run -d \
+                --name sglang-server \
+                --network "$DOCKER_NET" \
+                -p "${PORT_SGLANG}:30000" \
+                -v "${MODELS_DIR}:/models:ro" \
+                --ipc=host \
+                -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+                --restart unless-stopped \
+                $IMG_SGLANG \
+                python3 -m sglang.launch_server \
+                --model-path "/models/llama-3.1-8b-awq" \
+                --port 30000 \
+                --host 0.0.0.0 \
+                --dtype float32 \
+                --device cpu \
+                --max-total-tokens 4096 \
+                --tp-size 1 \
+                --trust-remote-code
         fi
     fi  # cierra: if is_container_running && API OK ... else ... fi
 
-    # [V26-F2b] Health-check HTTP real — solo si se lanzó el contenedor
-    SGLANG_SKIP_NO_VRAM="${SGLANG_SKIP_NO_VRAM:-false}"
-    if [[ "$SGLANG_SKIP_NO_VRAM" == "true" ]]; then
-        warn "SGLang omitido (VRAM insuficiente para AWQ). Estado: no disponible."
-    else
-        SGLANG_READY=false
-        info "Esperando que SGLang inicialice su API HTTP en localhost:${PORT_SGLANG}… (máx ${TIMEOUT_SGLANG}s)"
-        for _retry in $(seq 1 "$TIMEOUT_SGLANG"); do
-            if ! docker ps --format '{{.Names}}' | grep -qx "sglang-server"; then
-                err "Contenedor 'sglang-server' ya no está en ejecución. Revisa: docker logs sglang-server"
-                break
-            fi
-            SGLANG_HTTP=$(curl --noproxy "*" --ipv4 -s -m 2 -o /dev/null -w "%{http_code}" \
-                "http://localhost:${PORT_SGLANG}/health" 2>/dev/null || echo "000")
-            if [[ "$SGLANG_HTTP" == "200" ]]; then
-                SGLANG_READY=true
-                break
-            fi
-            sleep 1
-        done
-        if [[ "$SGLANG_READY" == "true" ]]; then
-            ok "SGLang ✔ — API lista (puerto ${PORT_SGLANG})"
-        else
-            warn "SGLang no respondió tras ${TIMEOUT_SGLANG}s (último HTTP: ${SGLANG_HTTP:-000})"
-            warn "Revisa: docker logs sglang-server --tail 30"
-            docker logs --tail=20 sglang-server 2>&1 || true
+    # [V26-F2b] Health-check HTTP real (no TCP): SGLang tarda en compilar torch y cargar pesos AWQ
+    SGLANG_READY=false
+    info "Esperando que SGLang inicialice su API HTTP en localhost:${PORT_SGLANG}… (máx ${TIMEOUT_SGLANG}s)"
+    for _retry in $(seq 1 "$TIMEOUT_SGLANG"); do
+        if ! docker ps --format '{{.Names}}' | grep -qx "sglang-server"; then
+            err "Contenedor 'sglang-server' ya no está en ejecución. Revisa: docker logs sglang-server"
+            break
         fi
+        SGLANG_HTTP=$(curl --noproxy "*" --ipv4 -s -m 2 -o /dev/null -w "%{http_code}" \
+            "http://localhost:${PORT_SGLANG}/health" 2>/dev/null || echo "000")
+        if [[ "$SGLANG_HTTP" == "200" ]]; then
+            SGLANG_READY=true
+            break
+        fi
+        sleep 1
+    done
+    if [[ "$SGLANG_READY" == "true" ]]; then
+        ok "SGLang ✔ — API lista (puerto ${PORT_SGLANG})"
+    else
+        warn "SGLang no respondió tras ${TIMEOUT_SGLANG}s (último HTTP: ${SGLANG_HTTP:-000})"
+        warn "Revisa: docker logs sglang-server --tail 30"
+        docker logs --tail=20 sglang-server 2>&1 || true
     fi
 else
     warn "Modelo AWQ no encontrado: $SGLANG_MODEL — omitiendo SGLang"
