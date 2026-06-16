@@ -1049,55 +1049,25 @@ if [[ -d "$SGLANG_MODEL" ]]; then
     else
         ensure_container_stopped "sglang-server"
         pull_if_last "$IMG_SGLANG" "SGLang"
-        # [V26-FIX-SG] Detectar VRAM libre AHORA (tras TabbAPI y Ollama ya cargados)
-        VRAM_FREE_NOW=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ' || echo "0")
-        info "VRAM libre tras TabbAPI+Ollama: ${VRAM_FREE_NOW} MiB"
-
-        if [[ "${VRAM_FREE_NOW}" -ge 4096 ]]; then
-            # GPU mode: hay suficiente VRAM
-            SGLANG_MEM_FRAC=$(awk "BEGIN {printf \"%.2f\", (${VRAM_FREE_NOW} - 512) / $(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')}")
-            info "SGLang modo GPU (mem-fraction-static=${SGLANG_MEM_FRAC})"
-            docker run -d \
-                --name sglang-server \
-                --network "$DOCKER_NET" \
-                --gpus all \
-                -p "${PORT_SGLANG}:30000" \
-                -v "${MODELS_DIR}:/models:ro" \
-                --ipc=host \
-                --restart unless-stopped \
-                $IMG_SGLANG \
-                python3 -m sglang.launch_server \
-                --model-path "/models/llama-3.1-8b-awq" \
-                --port 30000 \
-                --host 0.0.0.0 \
-                --dtype float16 \
-                --quantization awq \
-                --max-total-tokens 8192 \
-                --mem-fraction-static "${SGLANG_MEM_FRAC}" \
-                --tp-size 1 \
-                --trust-remote-code
-        else
-            # CPU fallback: VRAM insuficiente para coexistir con TabbAPI+Ollama
-            warn "VRAM libre insuficiente (${VRAM_FREE_NOW} MiB < 4096 MiB). Arrancando SGLang en CPU..."
-            docker run -d \
-                --name sglang-server \
-                --network "$DOCKER_NET" \
-                -p "${PORT_SGLANG}:30000" \
-                -v "${MODELS_DIR}:/models:ro" \
-                --ipc=host \
-                -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
-                --restart unless-stopped \
-                $IMG_SGLANG \
-                python3 -m sglang.launch_server \
-                --model-path "/models/llama-3.1-8b-awq" \
-                --port 30000 \
-                --host 0.0.0.0 \
-                --dtype float32 \
-                --device cpu \
-                --max-total-tokens 4096 \
-                --tp-size 1 \
-                --trust-remote-code
-        fi
+        docker run -d \
+            --name sglang-server \
+            --network "$DOCKER_NET" \
+            --gpus all \
+            -p "${PORT_SGLANG}:30000" \
+            -v "${MODELS_DIR}:/models:ro" \
+            --ipc=host \
+            --restart unless-stopped \
+            $IMG_SGLANG \
+            python3 -m sglang.launch_server \
+            --model-path "/models/llama-3.1-8b-awq" \
+            --port 30000 \
+            --host 0.0.0.0 \
+            --dtype float16 \
+            --quantization awq \
+            --max-total-tokens 16384 \
+            --mem-fraction-static 0.50 \
+            --tp-size 1 \
+            --trust-remote-code
     fi
 
     # [V26-F2b] Health-check HTTP real (no TCP): SGLang tarda en compilar torch y cargar pesos AWQ
@@ -1279,8 +1249,8 @@ engines:
     engine: stackoverflow
     shortcut: so
 YAML_EOF
-    chmod 644 "$SEARXNG_SETTINGS"
-    ok "settings.yml generado en $SEARXNG_SETTINGS (permisos: 644)"
+    chmod 600 "$SEARXNG_SETTINGS"
+    ok "settings.yml generado en $SEARXNG_SETTINGS (permisos: 600)"
 fi
 
 SEARXNG_PREV_HTTP=$(curl --noproxy "*" --ipv4 -s -m 3 -o /dev/null -w "%{http_code}" \
@@ -1291,8 +1261,6 @@ else
     if is_container_running "searxng"; then
         info "Contenedor 'searxng' existe pero no responde (HTTP ${SEARXNG_PREV_HTTP}) — recreando..."
     fi
-    # [V26-FIX-SX2] settings.yml debe ser legible por el proceso interno del contenedor (uid≠host)
-    chmod 644 "$SEARXNG_SETTINGS" 2>/dev/null || true
     ensure_container_stopped "searxng"
     pull_if_last "$IMG_SEARXNG" "SearXNG"
     docker run -d \
