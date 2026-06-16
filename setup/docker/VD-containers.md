@@ -555,3 +555,52 @@ docker_on
 Una vez que hayas encendido Docker con `docker_on`, puedes usar tu alias `dinfo` (o ejecutar `df -h /mnt/ai_containers`).
 
 Verás que mágicamente tu disco ha pasado a tener 150 GB de capacidad total, Ollama y TabbyAPI seguirán ahí intactos, y tendrás espacio más que de sobra para que el monstruoso proceso de extracción de SGLang se complete sin volver a colapsar el sistema.
+
+
+---
+
+
+Esa es la mentalidad de un verdadero desarrollador: aplicar el principio **DRY** (*Don't Repeat Yourself* o "No te repitas"). Ahora que tienes a un "gestor profesional" (Systemd) encargándose de todo el trabajo sucio en segundo plano, no tiene ningún sentido mantener esas funciones gigantes de 40 líneas ocupando espacio en tu archivo de configuración de Zsh.
+
+Aunque mencionas llamar directamente al script con `sudo bash /home/fcela-ga/docker/service_mgr.sh start`, la **mejor práctica (Best Practice)** en administración de sistemas es apuntar el alias a `systemctl`.
+
+**¿Por qué?** Si llamas al script directamente por Bash, tú levantas Docker, pero Systemd "no se entera". Si apuntas a `systemctl`, Systemd ejecuta tu script de Bash por ti, mantiene el registro en sus logs y sabe exactamente en qué estado está el sistema.
+
+### La Limpieza en `~/.zshrc`
+
+Abre tu archivo de configuración:
+
+```bash
+nano ~/.zshrc
+
+```
+
+**1. Borra el código viejo:**
+Localiza todo el bloque gigante donde definimos las funciones `docker_on() { ... }` y `docker_off() { ... }` y elimínalas por completo.
+
+**2. Pega los nuevos alias:**
+Reemplaza todo ese bloque por estas tres simples líneas. Ahora serán alias directos que le pasarán el mando a tu nuevo servicio:
+
+```zsh
+# ─────────────────────────────────────────────────────────────────────────────
+# CONTROLADORES DE DOCKER (Gestionados por Systemd)
+# ─────────────────────────────────────────────────────────────────────────────
+alias docker_on='sudo systemctl start ssd-shared-docker.service && echo -e "\033[1;32m[OK]\033[0m Motores encendidos y Disco (150GB) montado vía Systemd."'
+alias docker_off='sudo systemctl stop ssd-shared-docker.service && echo -e "\033[1;34m[INFO]\033[0m Motores apagados y Disco liberado con éxito."'
+
+# Alias para ver el estado del disco de 150GB
+alias dinfo='echo -e "\n\033[1;36m[ DISCO VIRTUAL ]\033[0m" && df -h /mnt/ai_containers 2>/dev/null || echo "Disco no montado" && echo -e "\n\033[1;36m[ DESGLOSE INTERNO ]\033[0m" && sudo du -sh /mnt/ai_containers/* 2>/dev/null && echo -e "\n\033[1;36m[ ESTADO DE DOCKER ]\033[0m" && sudo docker system df 2>/dev/null'
+
+```
+
+**3. Guarda y recarga:**
+Guarda el archivo (`Ctrl+O`, `Enter`, `Ctrl+X`) y recarga tu terminal para aplicar la limpieza:
+
+```bash
+source ~/.zshrc
+
+```
+
+¡Y listo! Tu archivo `~/.zshrc` ha quedado limpio y elegante. A partir de ahora, cuando escribas `docker_on`, Zsh le dará la orden a Systemd, Systemd ejecutará tu script `service_mgr.sh`, montará tu disco de 150 GB de forma segura y levantará los motores. Todo perfectamente sincronizado con el sistema operativo de tu equipo.
+
+
