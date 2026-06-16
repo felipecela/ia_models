@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DISK_IMG="/home/fcela-ga/sgoinfre/docker/containers_disk.img"
-MNT_DIR="/mnt/ai_containers"
+MNT_DIR="/mnt/docker_containers"
 
 start_docker() {
     echo "[DOCKER-AUTO] Esperando a que el disco virtual esté disponible..."

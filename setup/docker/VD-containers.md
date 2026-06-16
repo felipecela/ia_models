@@ -604,3 +604,74 @@ source ~/.zshrc
 ¡Y listo! Tu archivo `~/.zshrc` ha quedado limpio y elegante. A partir de ahora, cuando escribas `docker_on`, Zsh le dará la orden a Systemd, Systemd ejecutará tu script `service_mgr.sh`, montará tu disco de 150 GB de forma segura y levantará los motores. Todo perfectamente sincronizado con el sistema operativo de tu equipo.
 
 
+---
+
+
+Tu deducción es **absolutamente correcta**. El directorio en `/mnt/` actúa únicamente como un "punto de anclaje" (una puerta de entrada). Todos tus gigabytes de contenedores, imágenes y datos reales viven encapsulados dentro del archivo físico `containers_disk.img`. Al cambiar la ruta de montaje, simplemente estás moviendo la puerta; el interior sigue intacto y no hay que mover ningún contenido físico.
+
+Hacer este renombre hacia algo más genérico es una excelente decisión de diseño de sistemas. Puedes hacerlo de manera directa, pero hay **un detalle externo** crítico que debes actualizar para que todo siga funcionando perfectamente.
+
+Aquí tienes el proceso exacto y seguro para hacer la transición sin romper nada:
+
+### 1. Detener el entorno (Obligatorio)
+
+Antes de tocar el script, debes asegurarte de que el disco virtual se desmonte limpiamente y Docker se apague para liberar el anclaje actual.
+
+```bash
+sudo systemctl stop ssd-shared-docker.service
+
+```
+
+### 2. Modificar el Script
+
+Abre el script `service_mgr.sh` y actualiza la línea exactamente como propones:
+
+```bash
+MNT_DIR="/mnt/docker_containers"
+
+```
+
+*No necesitas crear esta nueva carpeta a mano, ya que la función `start_docker` tiene la orden `mkdir -p "$MNT_DIR"` que la generará automáticamente al arrancar.*
+
+### 3. Limpiar la ruta antigua (Recomendado)
+
+Al cambiar el nombre, la vieja carpeta `/mnt/ai_containers` se quedará como un directorio vacío y sin uso en la raíz de Ubuntu. Es una buena práctica de administración borrarla para mantener el sistema limpio:
+
+```bash
+sudo rmdir /mnt/ai_containers
+
+```
+
+### 4. Actualizar Zsh (El detalle clave)
+
+**¡Ojo con este paso!** Recuerda que tienes un alias configurado en tu terminal Zsh para revisar el espacio en disco (`dinfo`). Si no lo actualizas, el comando fallará al intentar leer la ruta antigua.
+
+Abre tu configuración de Zsh:
+
+```bash
+nano ~/.zshrc
+
+```
+
+Busca la línea del alias `dinfo` y sustituye la ruta para que apunte al nuevo montaje. Debe quedar así:
+
+```zsh
+alias dinfo='echo -e "\n\033[1;36m[ DISCO VIRTUAL ]\033[0m" && df -h /mnt/docker_containers 2>/dev/null || echo "Disco no montado" && echo -e "\n\033[1;36m[ DESGLOSE INTERNO ]\033[0m" && sudo du -sh /mnt/docker_containers/* 2>/dev/null && echo -e "\n\033[1;36m[ ESTADO DE DOCKER ]\033[0m" && sudo docker system df 2>/dev/null'
+
+```
+
+Guarda y recarga la configuración ejecutando `source ~/.zshrc`.
+
+### 5. Levantar el entorno
+
+Finalmente, arranca de nuevo el servicio maestro:
+
+```bash
+sudo systemctl start ssd-shared-docker.service
+
+```
+
+El script enlazará tu disco virtual a la nueva ruta `/mnt/docker_containers`, reconstruirá los puentes internos hacia `/var/lib/docker` y `/var/lib/containerd`, y todos tus servicios y modelos estarán exactamente donde los dejaste, pero bajo una arquitectura mucho más ordenada y genérica.
+
+
+
