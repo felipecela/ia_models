@@ -752,6 +752,7 @@ else
         -v chromadb_data:/chroma/chroma \
         -e IS_PERSISTENT=TRUE \
         -e ANONYMIZED_TELEMETRY=FALSE \
+        -e CHROMA_SERVER_HOST=0.0.0.0 \
         --restart unless-stopped \
         ghcr.io/chroma-core/chroma:latest
 fi
@@ -774,11 +775,13 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     fi
 
     if docker ps --format '{{.Names}}' | grep -qx "chromadb"; then
-        INTERNAL_STATUS=$(docker exec chromadb curl --noproxy "*" --ipv4 -s -m 3 -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/api/v2/heartbeat 2>/dev/null || echo "000")
+        # Comprobar desde un contenedor temporal en la misma red Docker (evita depender de utilidades dentro de chromadb)
+        INTERNAL_STATUS=$(docker run --rm --network "$DOCKER_NET" curlimages/curl:latest --connect-timeout 3 --ipv4 -s -o /dev/null -w "%{http_code}" http://chromadb:8000/api/v2/heartbeat 2>/dev/null || echo "000")
+
         if [ "$INTERNAL_STATUS" = "200" ]; then
-            info "ChromaDB interno responde, pero el host forwarding en 127.0.0.1:${PORT_CHROMADB} aún no está listo."
+            info "ChromaDB responde desde la red interna (http://chromadb:8000) pero el host forwarding en 127.0.0.1:${PORT_CHROMADB} aún no está listo."
         else
-            info "ChromaDB interno todavía no está listo (HTTP ${INTERNAL_STATUS})."
+            info "ChromaDB interno (red Docker) todavía no está listo (HTTP ${INTERNAL_STATUS})."
         fi
     else
         err "Contenedor 'chromadb' ya no está en ejecución. Revisa: docker logs chromadb"
