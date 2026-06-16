@@ -65,11 +65,11 @@ ai_cluster   # Relanza el autoboot
 # ─────────────────────────────────────────────────────────────────────────────
 # CONTROLADORES DE DOCKER (Gestionados por Systemd)
 # ─────────────────────────────────────────────────────────────────────────────
-alias docker_on='sudo systemctl start ssd-shared-docker.service && echo -e "\033[1;32m[OK]\03>
-alias docker_off='sudo systemctl stop ssd-shared-docker.service && echo -e "\033[1;34m[INFO]\>
+alias docker_on='sudo systemctl start ssd-shared-docker.service && echo -e "\033[1;32m[OK]\033[0m Motores encendidos y Disco (100GB) montado vía Systemd."'
+alias docker_off='sudo systemctl stop ssd-shared-docker.service && echo -e "\033[1;34m[INFO]\033[0m Motores apagados y Disco liberado con éxito."'
 
 # Alias para ver el estado del disco de 150GB
-alias dinfo='echo -e "\n\033[1;36m[ DISCO VIRTUAL ]\033[0m" && df -h /mnt/docker_containers 2>
+alias dinfo='echo -e "\n\033[1;36m[ DISCO VIRTUAL ]\033[0m" && df -h /mnt/ai_containers 2>/dev/null || echo "Disco no montado" && echo -e "\n\033[1;36m[ DESGLOSE INTERNO ]\033[0m" && sudo du -sh /mnt/ai_containers/* 2>/dev/null && echo -e "\n\033[1;36m[ ESTADO DE DOCKER ]\033[0m" && sudo docker system df 2>/dev/null'
 
 
 

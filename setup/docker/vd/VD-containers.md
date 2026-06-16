@@ -585,7 +585,7 @@ Reemplaza todo ese bloque por estas tres simples líneas. Ahora serán alias dir
 # ─────────────────────────────────────────────────────────────────────────────
 # CONTROLADORES DE DOCKER (Gestionados por Systemd)
 # ─────────────────────────────────────────────────────────────────────────────
-alias docker_on='sudo systemctl start ssd-shared-docker.service && echo -e "\033[1;32m[OK]\033[0m Motores encendidos y Disco (150GB) montado vía Systemd."'
+alias docker_on='sudo systemctl start ssd-shared-docker.service && echo -e "\033[1;32m[OK]\033[0m Motores encendidos y Disco (100GB) montado vía Systemd."'
 alias docker_off='sudo systemctl stop ssd-shared-docker.service && echo -e "\033[1;34m[INFO]\033[0m Motores apagados y Disco liberado con éxito."'
 
 # Alias para ver el estado del disco de 150GB
