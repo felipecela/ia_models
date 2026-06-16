@@ -175,6 +175,16 @@ ensure_container_stopped() {
     fi
 }
 
+# ─── Comprobar si el contenedor está vivo ────────────────────────────────────
+is_container_running() {
+    local name="$1"
+    # Preguntamos a Docker si el estado exacto es "running"
+    if [ "$(docker inspect -f '{{.State.Status}}' "$name" 2>/dev/null)" == "running" ]; then
+        return 0 # Verdadero: Está corriendo
+    fi
+    return 1 # Falso: Está apagado, crasheado o no existe
+}
+
 # ─── Validación de filesystem ────────────────────────────────────────────────
 validate_filesystem() {
     local dir="$1"
@@ -537,23 +547,27 @@ section "1/7 — Ollama GPU (:$PORT_OLLAMA_GPU)"
 # 1. PRE-CREAR el directorio antes para evitar el error 'chown' del demonio de Docker
 mkdir -p "${MODELS_DIR}/ollama" 2>/dev/null || true
 
-ensure_container_stopped "ollama-gpu-main"
+if is_container_running "ollama-gpu-main"; then
+    info "Contenedor 'ollama-gpu-main' en ejecución. Reutilizando (ahorrando VRAM)..."
+else
+    ensure_container_stopped "ollama-gpu-main"
 
-# 2. SEPARAR el estado interno (ext4 en Docker) de los pesos (.gguf en exFAT)
-docker run -d \
-    --name ollama-gpu-main \
-    --network "$DOCKER_NET" \
-    --gpus all \
-    -p "${PORT_OLLAMA_GPU}:11434" \
-    -e OLLAMA_MODELS=/models \
-    -v "${MODELS_DIR}/ollama:/models" \
-    -v ollama_gpu_data:/root/.ollama \
-    -e OLLAMA_KEEP_ALIVE=24h \
-    -e OLLAMA_MAX_LOADED_MODELS=1 \
-    -e OLLAMA_FLASH_ATTENTION=1 \
-    -e OLLAMA_NUM_PARALLEL=1 \
-    --restart unless-stopped \
-    ollama/ollama:latest
+    # 2. SEPARAR el estado interno (ext4 en Docker) de los pesos (.gguf en exFAT)
+    docker run -d \
+        --name ollama-gpu-main \
+        --network "$DOCKER_NET" \
+        --gpus all \
+        -p "${PORT_OLLAMA_GPU}:11434" \
+        -e OLLAMA_MODELS=/models \
+        -v "${MODELS_DIR}/ollama:/models" \
+        -v ollama_gpu_data:/root/.ollama \
+        -e OLLAMA_KEEP_ALIVE=24h \
+        -e OLLAMA_MAX_LOADED_MODELS=1 \
+        -e OLLAMA_FLASH_ATTENTION=1 \
+        -e OLLAMA_NUM_PARALLEL=1 \
+        --restart unless-stopped \
+        ollama/ollama:latest
+fi
 
 wait_port "Ollama GPU" localhost "$PORT_OLLAMA_GPU" "$TIMEOUT_OLLAMA"
 
@@ -580,22 +594,26 @@ section "2/7 — Ollama CPU (:$PORT_OLLAMA_CPU)"
 # 1. PRE-CREAR el directorio
 mkdir -p "${MODELS_DIR}/ollama-cpu" 2>/dev/null || true
 
-ensure_container_stopped "ollama-cpu-router"
+if is_container_running "ollama-cpu-router"; then
+    info "Contenedor 'ollama-cpu-router' en ejecución. Reutilizando estado..."
+else
+    ensure_container_stopped "ollama-cpu-router"
 
-# 2. Omitimos la bandera --gpus y usamos CUDA_VISIBLE_DEVICES="" para aislar la VRAM
-docker run -d \
-    --name ollama-cpu-router \
-    --network "$DOCKER_NET" \
-    -p "${PORT_OLLAMA_CPU}:11434" \
-    -e CUDA_VISIBLE_DEVICES="" \
-    -e OLLAMA_MODELS=/models \
-    -v "${MODELS_DIR}/ollama-cpu:/models" \
-    -v ollama_cpu_data:/root/.ollama \
-    -e OLLAMA_KEEP_ALIVE=24h \
-    -e OLLAMA_MAX_LOADED_MODELS=2 \
-    -e OLLAMA_NUM_PARALLEL=1 \
-    --restart unless-stopped \
-    ollama/ollama:latest
+    # 2. Omitimos la bandera --gpus y usamos CUDA_VISIBLE_DEVICES="" para aislar la VRAM
+    docker run -d \
+        --name ollama-cpu-router \
+        --network "$DOCKER_NET" \
+        -p "${PORT_OLLAMA_CPU}:11434" \
+        -e CUDA_VISIBLE_DEVICES="" \
+        -e OLLAMA_MODELS=/models \
+        -v "${MODELS_DIR}/ollama-cpu:/models" \
+        -v ollama_cpu_data:/root/.ollama \
+        -e OLLAMA_KEEP_ALIVE=24h \
+        -e OLLAMA_MAX_LOADED_MODELS=2 \
+        -e OLLAMA_NUM_PARALLEL=1 \
+        --restart unless-stopped \
+        ollama/ollama:latest
+fi
 
 wait_port "Ollama CPU" localhost "$PORT_OLLAMA_CPU" "$TIMEOUT_OLLAMA"
 
@@ -634,25 +652,29 @@ ok "Ollama CPU ✔"
 # 3. TabbAPI / ExLlamaV2 (:5000)
 # ═══════════════════════════════════════════════════════════════════════════════
 section "3/7 — TabbAPI ExLlamaV2 (:$PORT_TABBYAPI)"
-ensure_container_stopped "exllamav2-api"
 
 EXL2_CHAT="${MODELS_DIR}/llama-3.1-8b-exl2"
 EXL2_CODER="${MODELS_DIR}/qwen2.5-coder-7b-exl2"
 
 if [[ -d "$EXL2_CHAT" ]] || [[ -d "$EXL2_CODER" ]]; then
-    docker run -d \
-        --name exllamav2-api \
-        --network "$DOCKER_NET" \
-        --gpus all \
-        -p "${PORT_TABBYAPI}:5000" \
-        -v "${MODELS_DIR}:/models:ro" \
-        --restart unless-stopped \
-        ghcr.io/theroyallab/tabbyapi:latest \
-        --model-dir /models \
-        --model "llama-3.1-8b-exl2" \
-        --max-seq-len 8192 \
-        --tensor-parallel 1 \
-        --port 5000
+    if is_container_running "exllamav2-api"; then
+        info "Contenedor 'exllamav2-api' en ejecución. Reutilizando (ahorrando VRAM)..."
+    else
+        ensure_container_stopped "exllamav2-api"
+        docker run -d \
+            --name exllamav2-api \
+            --network "$DOCKER_NET" \
+            --gpus all \
+            -p "${PORT_TABBYAPI}:5000" \
+            -v "${MODELS_DIR}:/models:ro" \
+            --restart unless-stopped \
+            ghcr.io/theroyallab/tabbyapi:latest \
+            --model-dir /models \
+            --model "llama-3.1-8b-exl2" \
+            --max-seq-len 8192 \
+            --tensor-parallel 1 \
+            --port 5000
+    fi
 
     if wait_port "TabbAPI" localhost "$PORT_TABBYAPI" "$TIMEOUT_TABBYAPI"; then
         ok "TabbAPI ExLlamaV2 ✔"
@@ -662,14 +684,12 @@ if [[ -d "$EXL2_CHAT" ]] || [[ -d "$EXL2_CODER" ]]; then
     fi
 else
     warn "Modelos EXL2 no encontrados en $MODELS_DIR — omitiendo TabbAPI"
-    warn "Descarga: llama-3.1-8b-exl2 y/o qwen2.5-coder-7b-exl2 en $MODELS_DIR"
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 4. SGLang (:30000) — [V21-B3] Timeout aumentado, [V21-B9] Verificación de modelo
 # ═══════════════════════════════════════════════════════════════════════════════
 section "4/7 — SGLang (:$PORT_SGLANG)"
-ensure_container_stopped "sglang-server"
 
 SGLANG_MODEL="${MODELS_DIR}/llama-3.1-8b-awq"
 
@@ -677,48 +697,49 @@ SGLANG_MODEL="${MODELS_DIR}/llama-3.1-8b-awq"
 if [[ -d "$SGLANG_MODEL" ]]; then
     # Verificar que contiene ficheros de modelo (al menos config.json o similar)
     if [[ ! -f "$SGLANG_MODEL/config.json" ]] && [[ ! -f "$SGLANG_MODEL/model.safetensors.index.json" ]]; then
-        warn "Directorio $SGLANG_MODEL existe pero no contiene ficheros de modelo reconocibles"
-        warn "Verifica que el modelo está completo (config.json, *.safetensors)"
+        warn "Directorio $SGLANG_MODEL existe pero no contiene ficheros de modelo"
     fi
 
-    docker run -d \
-        --name sglang-server \
-        --network "$DOCKER_NET" \
-        --gpus all \
-        -p "${PORT_SGLANG}:30000" \
-        -v "${MODELS_DIR}:/models:ro" \
-        --ipc=host \
-        --restart unless-stopped \
-        lmsysorg/sglang:latest \
-        python3 -m sglang.launch_server \
-            --model-path "/models/llama-3.1-8b-awq" \
-            --port 30000 \
-            --host 0.0.0.0 \
-            --dtype float16 \
-            --quantization awq \
-            --max-total-tokens 32768 \
-            --tp-size 1 \
-            --enable-torch-compile \
-            --trust-remote-code
+    if is_container_running "sglang-server"; then
+        info "Contenedor 'sglang-server' en ejecución. Reutilizando (ahorrando VRAM)..."
+    else
+        ensure_container_stopped "sglang-server"
+        docker run -d \
+            --name sglang-server \
+            --network "$DOCKER_NET" \
+            --gpus all \
+            -p "${PORT_SGLANG}:30000" \
+            -v "${MODELS_DIR}:/models:ro" \
+            --ipc=host \
+            --restart unless-stopped \
+            lmsysorg/sglang:latest \
+            python3 -m sglang.launch_server \
+                --model-path "/models/llama-3.1-8b-awq" \
+                --port 30000 \
+                --host 0.0.0.0 \
+                --dtype float16 \
+                --quantization awq \
+                --max-total-tokens 32768 \
+                --tp-size 1 \
+                --enable-torch-compile \
+                --trust-remote-code
+    fi
 
     # [V21-B3] Timeout aumentado a 240s para primera carga
     if wait_port "SGLang" localhost "$PORT_SGLANG" "$TIMEOUT_SGLANG"; then
         ok "SGLang ✔"
     else
         warn "SGLang no respondió en ${TIMEOUT_SGLANG}s — nivel AGIL no disponible"
-        warn "Si es la primera carga, intenta aumentar TIMEOUT_SGLANG o reiniciar manualmente."
         docker logs --tail=20 sglang-server 2>&1 || true
     fi
 else
     warn "Modelo AWQ no encontrado: $SGLANG_MODEL — omitiendo SGLang"
-    warn "Descarga llama-3.1-8b-awq en $MODELS_DIR/"
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 5. CHROMADB (:8001)
 # ═══════════════════════════════════════════════════════════════════════════════
 section "5/7 — ChromaDB (:$PORT_CHROMADB)"
-ensure_container_stopped "chromadb"
 
 # Generar chroma_config.yaml si no existe
 if [[ ! -f "${AI_HOME}/chroma_config.yaml" ]]; then
@@ -731,19 +752,23 @@ YAML_EOF
     ok "chroma_config.yaml generado en ${AI_HOME}"
 fi
 
-# Eliminamos variables inútiles y mapeamos directamente a /data
-docker run -d \
-    --name chromadb \
-    --network "$DOCKER_NET" \
-    -p "${PORT_CHROMADB}:8000" \
-    -v chromadb_data:/data \
-    -v "${AI_HOME}/chroma_config.yaml:/chroma/config.yaml:ro" \
-    -e CONFIG_PATH=/chroma/config.yaml \
-    --restart unless-stopped \
-    ghcr.io/chroma-core/chroma:latest
+if is_container_running "chromadb"; then
+    info "Contenedor 'chromadb' en ejecución. Reutilizando estado de memoria..."
+else
+    ensure_container_stopped "chromadb"
+    docker run -d \
+        --name chromadb \
+        --network "$DOCKER_NET" \
+        -p "${PORT_CHROMADB}:8000" \
+        -v chromadb_data:/data \
+        -v "${AI_HOME}/chroma_config.yaml:/chroma/config.yaml:ro" \
+        -e CONFIG_PATH=/chroma/config.yaml \
+        --restart unless-stopped \
+        ghcr.io/chroma-core/chroma:latest
+fi
 
 CHROMADB_READY=false
-MAX_RETRIES=60          # 60s total (ChromaDB puede tardar con índices HNSW grandes)
+MAX_RETRIES=60
 RETRY_COUNT=0
 info "Esperando que ChromaDB inicialice su API HTTP en 127.0.0.1:${PORT_CHROMADB}..."
 
@@ -755,7 +780,6 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         break
     fi
     
-    # Si el contenedor murió, no seguir esperando
     if ! docker ps --format '{{.Names}}' | grep -qx "chromadb"; then
         err "Contenedor 'chromadb' ya no está en ejecución. Revisa: docker logs chromadb"
         break
@@ -776,19 +800,23 @@ fi
 # 6. OBSIDIAN WEB (:3000)
 # ═══════════════════════════════════════════════════════════════════════════════
 section "6/7 — Obsidian (:$PORT_OBSIDIAN)"
-ensure_container_stopped "obsidian-kb"
 
-docker run -d \
-    --name obsidian-kb \
-    --network "$DOCKER_NET" \
-    -p "${PORT_OBSIDIAN}:3000" \
-    -v "${VAULT_DIR}:/vault" \
-    -v "${OBSIDIAN_APPDATA}:/config" \
-    -e VAULT_PATH="/vault" \
-    -e PUID="$(id -u)" \
-    -e PGID="$(id -g)" \
-    --restart unless-stopped \
-    linuxserver/obsidian:latest
+if is_container_running "obsidian-kb"; then
+    info "Contenedor 'obsidian-kb' en ejecución. Reutilizando estado..."
+else
+    ensure_container_stopped "obsidian-kb"
+    docker run -d \
+        --name obsidian-kb \
+        --network "$DOCKER_NET" \
+        -p "${PORT_OBSIDIAN}:3000" \
+        -v "${VAULT_DIR}:/vault" \
+        -v "${OBSIDIAN_APPDATA}:/config" \
+        -e VAULT_PATH="/vault" \
+        -e PUID="$(id -u)" \
+        -e PGID="$(id -g)" \
+        --restart unless-stopped \
+        linuxserver/obsidian:latest
+fi
 
 if wait_port "Obsidian" localhost "$PORT_OBSIDIAN" "$TIMEOUT_OBSIDIAN"; then
     ok "Obsidian ✔ → http://localhost:$PORT_OBSIDIAN"
@@ -800,7 +828,6 @@ fi
 # 7. SEARXNG (:8888)
 # ═══════════════════════════════════════════════════════════════════════════════
 section "7/7 — SearXNG (:$PORT_SEARXNG)"
-ensure_container_stopped "searxng"
 
 # Generar o recuperar secret_key persistente
 if [[ ! -f "$SEARXNG_SECRET_FILE" ]]; then
@@ -858,14 +885,19 @@ YAML_EOF
     ok "settings.yml generado en $SEARXNG_SETTINGS (permisos: 600)"
 fi
 
-docker run -d \
-    --name searxng \
-    --network "$DOCKER_NET" \
-    -p "${PORT_SEARXNG}:8888" \
-    -v "${SEARXNG_SETTINGS}:/etc/searxng/settings.yml:ro" \
-    -e SEARXNG_SECRET_KEY="${SEARXNG_SECRET}" \
-    --restart unless-stopped \
-    searxng/searxng:latest
+if is_container_running "searxng"; then
+    info "Contenedor 'searxng' en ejecución. Reutilizando estado..."
+else
+    ensure_container_stopped "searxng"
+    docker run -d \
+        --name searxng \
+        --network "$DOCKER_NET" \
+        -p "${PORT_SEARXNG}:8888" \
+        -v "${SEARXNG_SETTINGS}:/etc/searxng/settings.yml:ro" \
+        -e SEARXNG_SECRET_KEY="${SEARXNG_SECRET}" \
+        --restart unless-stopped \
+        searxng/searxng:latest
+fi
 
 if wait_port "SearXNG" localhost "$PORT_SEARXNG" "$TIMEOUT_SEARXNG"; then
     ok "SearXNG ✔ → http://localhost:$PORT_SEARXNG"
