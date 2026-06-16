@@ -166,3 +166,238 @@ Qué recoger y pegar aquí:
 Siguiente paso mío cuando pegues esos resultados: interpretar quién envía el RST y propondré la acción definitiva (ajuste iptables/nft, reinicio Docker, parchear docker-proxy o usar workaround estable).
 
 
+---
+
+
+docker stop chromadb 2>/dev/null; docker rm chromadb 2>/dev/null
+docker rmi ghcr.io/chroma-core/chroma:latest 2>/dev/null; true
+
+
+---
+
+
+# 1. Estado real del contenedor
+docker ps -a --filter name=chromadb --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+
+# 2. Últimos logs (el crash real estará aquí)
+docker logs chromadb --tail 50 2>&1
+
+# 3. Cuántas veces ha reiniciado
+docker inspect chromadb --format '{{.RestartCount}} reinicios — Estado: {{.State.Status}} — ExitCode: {{.State.ExitCode}}'
+
+# 4. Qué tiene el volumen (posible corrupción)
+docker run --rm -v chromadbdata:/data alpine ls -la /data/
+
+# 5. El curl con verbose completo
+curl -v --max-time 5 http://127.0.0.1:8001/api/v1/heartbeat 2>&1
+
+
+---
+
+
+# IP directa del contenedor (sin docker-proxy)
+CHROMA_IP=$(docker inspect chromadb --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+echo "IP del contenedor: $CHROMA_IP"
+curl -v http://${CHROMA_IP}:8000/api/v1/heartbeat 2>&1
+
+
+# Ver la regla DNAT exacta para ChromaDB
+sudo iptables -t nat -L DOCKER -n -v | grep 8001
+
+# Ver la regla de RAW que mencionaste antes (¡clave!)
+sudo iptables -t raw -L PREROUTING -n -v | grep 172.28
+
+# Intentar desde dentro de la red Docker (bypasando todo el NAT del host)
+docker run --rm --network ai_net curlimages/curl:latest \
+  curl -s http://chromadb:8000/api/v1/heartbeat
+  
+  
+---
+
+
+# Ver todas las reglas RAW (la causa probable)
+sudo iptables -t raw -L -n -v
+
+# Si aparece una regla DROP para 172.28.0.6, elimínala así:
+CHROMA_IP=$(docker inspect chromadb --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+sudo iptables -t raw -D PREROUTING -d ${CHROMA_IP} ! -i br-7a7a1e350686 -j DROP 2>/dev/null && echo "Regla eliminada" || echo "Regla no encontrada"
+
+# Verificar inmediatamente
+sleep 1
+curl -s http://127.0.0.1:8001/api/v1/heartbeat
+
+
+---
+
+
+# Eliminar TODAS las reglas DROP de iptables raw PREROUTING de una vez
+sudo iptables -t raw -F PREROUTING
+
+# Verificar que están limpias
+sudo iptables -t raw -L PREROUTING -n -v
+
+# Probar inmediatamente
+curl -s http://127.0.0.1:8001/api/v1/heartbeat
+
+
+---
+
+
+# Al inicio del script, después de crear la red Docker:
+# Limpiar reglas RAW que bloquean el forwarding del docker-proxy
+sudo iptables -t raw -F PREROUTING 2>/dev/null || true
+info "Reglas iptables RAW limpiadas (compatibilidad docker-proxy)"
+
+
+---
+
+
+# Eliminar la regla restante
+sudo iptables -t raw -F PREROUTING
+
+# Confirmar que está completamente vacío
+sudo iptables -t raw -L PREROUTING -n
+
+# Verificar IP actual del contenedor
+docker inspect chromadb --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
+
+# Probar con verbose completo
+curl -v --max-time 5 http://127.0.0.1:8001/api/v1/heartbeat 2>&1
+
+# Si sigue fallando, probar directamente a la IP del contenedor (sin escapes)
+CHOST=$(docker inspect chromadb --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+curl -v --max-time 5 http://$CHOST:8000/api/v1/heartbeat 2>&1
+
+
+---
+
+
+# El router arranca solo en ai_net (como ahora)
+# Después del arranque, lo conectas también a ai_backend:
+docker network connect "${DOCKER_NET_BACKEND}" <router_container_name>
+
+# O si el router corre como proceso Python en el host (no como contenedor),
+# el acceso a ai_backend lo consigues con una regla específica y explícita:
+sudo ip route add 172.29.0.0/24 via $(docker network inspect ai_backend \
+    --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}')
+    
+    
+---
+
+
+# Crear la red backend
+docker network create --driver bridge --subnet 172.29.0.0/24 ai_backend
+
+# Conectar el ChromaDB actual a la nueva red
+docker network connect ai_backend chromadb
+
+# Probar desde otro contenedor en la misma red (sin pasar por el host)
+docker run --rm --network ai_backend curlimages/curl:latest \
+    curl -s http://chromadb:8000/api/v1/heartbeat
+# Esperado: {"nanosecond heartbeat": ...}
+
+
+---
+
+
+# 1. Ver qué reglas DOCKER tiene iptables para el puerto 8001
+sudo iptables -t nat -L DOCKER -n --line-numbers | grep 8001
+
+# 2. Ver si hay paquetes INVALID siendo DROPeados o RSTeados
+sudo iptables -t filter -L INPUT -n -v | head -20
+
+# 3. Ver la tabla DOCKER-USER (puede tener reglas que bloqueen)
+sudo iptables -t filter -L DOCKER-USER -n -v
+
+# 4. Ver el estado conntrack para el puerto 8001
+sudo conntrack -L 2>/dev/null | grep 8001
+
+# 5. Verificar qué proceso tiene abierto el puerto 8001 en el host
+ss -tlnp | grep 8001
+
+
+---
+
+
+# Fix 1: Limpiar entradas conntrack corruptas del puerto 8001
+sudo conntrack -D -p tcp --dport 8001 2>/dev/null || true
+sudo conntrack -D -p tcp --sport 8001 2>/dev/null || true
+
+# Fix 2: Añadir regla para DROP (no RST) de paquetes INVALID antes de que lleguen al DNAT
+sudo iptables -I INPUT 1 -m conntrack --ctstate INVALID -j DROP
+
+# Fix 3: Verificar que la regla DNAT existe correctamente
+sudo iptables -t nat -L DOCKER -n | grep 8001
+
+
+curl -v http://127.0.0.1:8001/api/v1/heartbeat
+
+
+---
+
+
+# 1. Ver las reglas LIBVIRT en FORWARD (aquí está el conflicto)
+sudo iptables -t filter -L LIBVIRT_FWD -n -v 2>/dev/null || \
+sudo iptables -t filter -L LIBVIRT_FWO -n -v 2>/dev/null
+
+# 2. Ver la cadena FORWARD completa
+sudo iptables -t filter -L FORWARD -n -v
+
+# 3. Ver si docker-proxy está activo (userspace proxy)
+ps aux | grep docker-proxy | grep 8001
+
+# 4. Verificar la configuración del daemon Docker
+cat /etc/docker/daemon.json 2>/dev/null || echo "(no existe daemon.json)"
+
+# 5. Test directo: conectar directamente a la IP del contenedor (sin DNAT)
+CHROMA_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' chromadb)
+echo "IP del contenedor: $CHROMA_IP"
+curl -v "http://${CHROMA_IP}:8000/api/v1/heartbeat"
+
+
+---
+
+
+# 1. ¿Existe la interfaz bridge de ai_net y está UP?
+ip link show | grep -A1 "br-"
+
+# 2. ¿Tiene ruta en la tabla de routing?
+ip route show | grep 172.28
+
+# 3. Ver la interfaz concreta de ai_net
+docker network inspect ai_net | grep -E '"Interface"|"Subnet"|"Gateway"|"Driver"'
+
+# 4. ¿El bridge tiene IP asignada?
+ip addr show | grep -A3 "172.28"
+
+# 5. ¿ip_forward está activo?
+cat /proc/sys/net/ipv4/ip_forward
+
+
+---
+
+
+# ¿Qué red Docker es br-7a7a1e350686?
+docker network ls
+docker network inspect $(docker network ls -q) | grep -A5 '"Id"' | grep -E "Name|br-7a7a1e"
+
+# ¿A qué red está conectado chromadb realmente?
+docker inspect chromadb | grep -A10 "Networks"
+
+
+---
+
+
+docker network ls --no-trunc | grep 3c69ec1252b9
+
+# Eliminar la interfaz huérfana (no toca ai_net ni ningún contenedor)
+sudo ip link delete br-3c69ec1252b9
+
+
+ip route show | grep 172.28
+# Debe quedar solo UNA ruta, sin "linkdown"
+
+curl -s http://127.0.0.1:8001/api/v1/heartbeat
+# Debe devolver {"nanosecond heartbeat": ...}
+
+
