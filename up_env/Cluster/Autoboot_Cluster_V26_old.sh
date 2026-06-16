@@ -962,47 +962,19 @@ if [[ -d "$EXL2_CHAT" ]] || [[ -d "$EXL2_CODER" ]]; then
         fi
         ensure_container_stopped "exllamav2-api"
         pull_if_last "$IMG_TABBYAPI" "TabbAPI ExLlamaV2"
-        # [V26-FIX-TABBY] ENTRYPOINT de la imagen es ["python3"], CMD es ["main.py","--host","0.0.0.0"]
-        # Los args tras la imagen reemplazan el CMD completo → se los pasaría a python3 directamente.
-        # Solución: NO pasar args en docker run. El modelo se configura via config.yml montado en /app/config.yml.
-        # Generar config.yml dinámico con el modelo disponible:
-        local TABBY_CONFIG_FILE="$AI_HOME/tabbyapi_config.yml"
-        local TABBY_MODEL_NAME=""
-        if [[ -d "$EXL2_CHAT" ]]; then
-            TABBY_MODEL_NAME="llama-3.1-8b-exl2"
-        elif [[ -d "$EXL2_CODER" ]]; then
-            TABBY_MODEL_NAME="qwen2.5-coder-7b-exl2"
-        fi
-        cat > "$TABBY_CONFIG_FILE" <<TABBYCONF
-# TabbyAPI config — generado por Autoboot_Cluster_V26
-network:
-  host: "0.0.0.0"
-  port: 5000
-  disable_auth: true
-
-model:
-  model_dir: "models"
-  model_name: "${TABBY_MODEL_NAME}"
-  max_seq_len: 8192
-  tensor_parallel: false
-  cache_mode: "Q4"
-
-logging:
-  log_prompt: false
-  log_generation_params: false
-TABBYCONF
-        info "TabbyAPI config.yml generado → modelo: ${TABBY_MODEL_NAME}"
-
         docker run -d \
             --name exllamav2-api \
             --network "$DOCKER_NET" \
             --gpus all \
             -p "${PORT_TABBYAPI}:5000" \
-            -v "${MODELS_DIR}:/app/models:ro" \
-            -v "${TABBY_CONFIG_FILE}:/app/config.yml:ro" \
-            --shm-size 2g \
+            -v "${MODELS_DIR}:/models:ro" \
             --restart unless-stopped \
-            $IMG_TABBYAPI
+            $IMG_TABBYAPI \
+            --model-dir /models \
+            --model "llama-3.1-8b-exl2" \
+            --max-seq-len 8192 \
+            --tensor-parallel 1 \
+            --port 5000
     fi  # cierra: if is_container_running && health 200 ... else ... fi
 
     # [V26-F2a] Health-check HTTP real (no TCP): TabbyAPI necesita tiempo para cargar el modelo EXL2
