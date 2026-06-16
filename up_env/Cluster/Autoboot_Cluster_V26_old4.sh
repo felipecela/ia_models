@@ -1044,13 +1044,9 @@ if [[ -d "$SGLANG_MODEL" ]]; then
         warn "Directorio $SGLANG_MODEL existe pero no contiene ficheros de modelo"
     fi
 
-    SGLANG_PREV_HTTP=$(curl --noproxy "*" --ipv4 -s -m 3 -o /dev/null -w "%{http_code}"         "http://localhost:${PORT_SGLANG}/health" 2>/dev/null || echo "000")
-    if is_container_running "sglang-server" && [[ "$SGLANG_PREV_HTTP" == "200" ]]; then
-        info "Contenedor 'sglang-server' en ejecución y respondiendo (HTTP 200). Reutilizando..."
+    if is_container_running "sglang-server"; then
+        info "Contenedor 'sglang-server' en ejecución. Reutilizando (ahorrando VRAM)..."
     else
-        if is_container_running "sglang-server"; then
-            info "Contenedor 'sglang-server' existe pero no responde (HTTP ${SGLANG_PREV_HTTP}) — recreando con config correcta..."
-        fi
         ensure_container_stopped "sglang-server"
         pull_if_last "$IMG_SGLANG" "SGLang"
         # [V26-FIX-SG] Detectar VRAM libre AHORA (tras TabbAPI y Ollama ya cargados)
@@ -1102,7 +1098,7 @@ if [[ -d "$SGLANG_MODEL" ]]; then
                 --tp-size 1 \
                 --trust-remote-code
         fi
-    fi  # cierra: if is_container_running && API OK ... else ... fi
+    fi
 
     # [V26-F2b] Health-check HTTP real (no TCP): SGLang tarda en compilar torch y cargar pesos AWQ
     SGLANG_READY=false
@@ -1257,8 +1253,7 @@ search:
     - json
 server:
   secret_key: "${SEARXNG_SECRET}"
-  port: 8080
-  bind_address: "0.0.0.0"
+  bind_address: "0.0.0.0:8888"
   limiter: false
   public_instance: false
 engines:
@@ -1303,8 +1298,8 @@ else
     docker run -d \
         --name searxng \
         --network "$DOCKER_NET" \
-        -p "${PORT_SEARXNG}:8080" \
-        -v "${SEARXNG_SETTINGS}:/etc/searxng/settings.yml" \
+        -p "${PORT_SEARXNG}:8888" \
+        -v "${SEARXNG_SETTINGS}:/etc/searxng/settings.yml:ro" \
         -e SEARXNG_SECRET_KEY="${SEARXNG_SECRET}" \
         --restart unless-stopped \
         $IMG_SEARXNG
