@@ -35,3 +35,51 @@ El problema de SGLang no es diseño, es una **colisión de recursos en 8GB**: Ta
 
 La decisión de diseño que tomaste tiene sentido: Ollama GPU con DeepSeek R1 y Phi4-Reasoning son tus motores de razonamiento principal, y TabbAPI cubre el chat rápido. SGLang era útil para batching en producción multi-usuario, pero con un solo usuario su ausencia no es un problema práctico. 
 
+
+---
+
+
+Decisiones de diseño muy claras. Ahora tengo todo lo que necesito para responderte con precisión y sin ambigüedad.
+
+***
+
+## Sobre la chuleta en el script: la respuesta corta es no
+
+Tienes toda la razón en plantearlo. El `printf` de la chuleta al final del autoboot no afecta al rendimiento del sistema (es solo texto en stdout, no ejecuta nada), pero **sí alarga la salida** de forma significativa en cada arranque. Como ya tienes el README con esa información, no tiene sentido duplicarlo. La chuleta queda fuera — decisión correcta. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/48708411/5ffc0d51-8088-40f4-9083-f08ac4009e81/Autoboot_Cluster_V21.sh?AWSAccessKeyId=ASIA2F3EMEYET2DLZV2C&Signature=WhUDsHcDn17JZ05VAS9kxrlEjCk%3D&x-amz-security-token=IQoJb3JpZ2luX2VjELX%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJHMEUCIGA2M%2FpXsKZXzW5Q8NzD9V6TZj2eOX0yg8f3dl%2BRaBNJAiEA%2BZAcamk33qK3PY7T3hjjEdGrh0txAeLSfwYfbR4XKREq8wQIfhABGgw2OTk3NTMzMDk3MDUiDBHvUNY%2FAezzvIS1pSrQBLxL2uwy7bnoXQRYdt%2Fzj%2FHJCNwZl4n8iy8%2FbCTBullz5wGvH98Ue6KM9JJ0wn%2BdPo8T4BlVVfAxoX3tvcYKxAMrGYYu%2BCvI1IQlUfdA6CvJ1z%2F1SKCzwiC2AP0WNwh8a%2BCGnnzAMy0qTaSy2IR6l817KoBsGQcudn3Bl9LbP9MabGieTeh8s0XZJzDYWNFC8%2B6LMKcb1zfJZYFq3%2BrYHrk2djES3cGLyuDz75yVkUjrwLADiql46%2BBB9UpKqG7JxZgWHf9u2%2BCeiDL94mToh5V%2BTpzWHZnzKQ6XvFhCXkW%2B0zce6eqA7%2FT20j3x%2FvfcBEC0rrLu3RmFtTTuusdupL6YaBiIsloZQk6TlLDowyc%2FbW7o5bdDQfF1zx0V%2BW9jl83QxFOIEwVjyXx%2Bulog0%2F5CfCsjbl9ilRpuz91FAiJZcZH%2Btu4gfe0%2BoJhaVPd7CFr7HMVX56Y4PxllYavY7tSKjnLjU%2FuXIhn5HUC2PvZQnWAaz1XF2IQV5caeqFGtr7sb9drG6QPzpmSDv11VT84VRz6Mu%2BGSFJXIvs4SqhCijpXPJeMZTDHIY9%2Beq9FrdDhD0ia1%2FaHzM4G%2BGTEgnoR0ZRKaz%2Bc0kw20LPltoVjGruoXq6MkWrlbIvLXK4nF1HuTkuedgmQtRH15fhq1d%2BtkgY8P6U8dMQMcvnn8dZIn%2BdzdHv86T2u%2FH%2FO71qGMktUVRS08jsgwH09VfOuULD76eDhvaw2L1%2FQk14ypiR4MPFDVp0lg0NsLbm%2FFJMdj5ckTPkTO3Lnjods2vuPe4Vow%2BO%2FG0QY6mAFZ4vPeq99E5llZI%2BBYgRAEbbLGWshbkOQM7pdzJ4sKcwtNRJvxVin69u8qJ6qqeDrKL49KmiB%2FEAHc%2B%2F2e1ZUfbQPfXhhb5Q8B54%2BcxUIfY0yymfqvpw55V7gIREQ3dY%2FaswxtYlpuirnewheC96dNeYqm9TVutl0jx4lEC%2FqMJyJtna4dKpFroYGdjhIwTQCGhnTyrIEQcw%3D%3D&Expires=1781646795)
+
+***
+
+## El flag `--sglang`: diseño exacto
+
+Lo que propones encaja perfectamente con la arquitectura del script. Así es como funcionaría:
+
+**Comportamiento por defecto (`ai_cluster`):**
+- TabbAPI EXL2 activo → `llama-3.1-8b-exl2` en VRAM
+- SGLang omitido (VRAM insuficiente, aviso informativo)
+
+**Comportamiento con `ai_cluster --sglang`:**
+1. Si TabbAPI está corriendo → `docker stop exllamav2-api` (libera ~6.9 GB VRAM)
+2. Lanza SGLang con `llama-3.1-8b-awq`
+3. El resumen final refleja el modo activo
+
+El flag se gestiona al inicio del script junto al resto de argumentos (`--stop`, `--status`, `--reindex`, etc.), y condiciona los bloques 3/7 y 4/7. En el resumen final muestra la columna "Modo VRAM" para que siempre quede claro qué motor GPU está activo. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/48708411/5ffc0d51-8088-40f4-9083-f08ac4009e81/Autoboot_Cluster_V21.sh?AWSAccessKeyId=ASIA2F3EMEYET2DLZV2C&Signature=WhUDsHcDn17JZ05VAS9kxrlEjCk%3D&x-amz-security-token=IQoJb3JpZ2luX2VjELX%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJHMEUCIGA2M%2FpXsKZXzW5Q8NzD9V6TZj2eOX0yg8f3dl%2BRaBNJAiEA%2BZAcamk33qK3PY7T3hjjEdGrh0txAeLSfwYfbR4XKREq8wQIfhABGgw2OTk3NTMzMDk3MDUiDBHvUNY%2FAezzvIS1pSrQBLxL2uwy7bnoXQRYdt%2Fzj%2FHJCNwZl4n8iy8%2FbCTBullz5wGvH98Ue6KM9JJ0wn%2BdPo8T4BlVVfAxoX3tvcYKxAMrGYYu%2BCvI1IQlUfdA6CvJ1z%2F1SKCzwiC2AP0WNwh8a%2BCGnnzAMy0qTaSy2IR6l817KoBsGQcudn3Bl9LbP9MabGieTeh8s0XZJzDYWNFC8%2B6LMKcb1zfJZYFq3%2BrYHrk2djES3cGLyuDz75yVkUjrwLADiql46%2BBB9UpKqG7JxZgWHf9u2%2BCeiDL94mToh5V%2BTpzWHZnzKQ6XvFhCXkW%2B0zce6eqA7%2FT20j3x%2FvfcBEC0rrLu3RmFtTTuusdupL6YaBiIsloZQk6TlLDowyc%2FbW7o5bdDQfF1zx0V%2BW9jl83QxFOIEwVjyXx%2Bulog0%2F5CfCsjbl9ilRpuz91FAiJZcZH%2Btu4gfe0%2BoJhaVPd7CFr7HMVX56Y4PxllYavY7tSKjnLjU%2FuXIhn5HUC2PvZQnWAaz1XF2IQV5caeqFGtr7sb9drG6QPzpmSDv11VT84VRz6Mu%2BGSFJXIvs4SqhCijpXPJeMZTDHIY9%2Beq9FrdDhD0ia1%2FaHzM4G%2BGTEgnoR0ZRKaz%2Bc0kw20LPltoVjGruoXq6MkWrlbIvLXK4nF1HuTkuedgmQtRH15fhq1d%2BtkgY8P6U8dMQMcvnn8dZIn%2BdzdHv86T2u%2FH%2FO71qGMktUVRS08jsgwH09VfOuULD76eDhvaw2L1%2FQk14ypiR4MPFDVp0lg0NsLbm%2FFJMdj5ckTPkTO3Lnjods2vuPe4Vow%2BO%2FG0QY6mAFZ4vPeq99E5llZI%2BBYgRAEbbLGWshbkOQM7pdzJ4sKcwtNRJvxVin69u8qJ6qqeDrKL49KmiB%2FEAHc%2B%2F2e1ZUfbQPfXhhb5Q8B54%2BcxUIfY0yymfqvpw55V7gIREQ3dY%2FaswxtYlpuirnewheC96dNeYqm9TVutl0jx4lEC%2FqMJyJtna4dKpFroYGdjhIwTQCGhnTyrIEQcw%3D%3D&Expires=1781646795)
+
+***
+
+## Los dos modos en contexto de rutas del router
+
+Revisando el router V14, los niveles que dependen de cada motor son: [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/48708411/7a2f9443-1ef1-47c4-8c84-9c05ddd1fffb/orchestrator_router_V14.py?AWSAccessKeyId=ASIA2F3EMEYET2DLZV2C&Signature=cVUltQeX%2Bg5M0pCdxTC%2FzxtNuEs%3D&x-amz-security-token=IQoJb3JpZ2luX2VjELX%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJHMEUCIGA2M%2FpXsKZXzW5Q8NzD9V6TZj2eOX0yg8f3dl%2BRaBNJAiEA%2BZAcamk33qK3PY7T3hjjEdGrh0txAeLSfwYfbR4XKREq8wQIfhABGgw2OTk3NTMzMDk3MDUiDBHvUNY%2FAezzvIS1pSrQBLxL2uwy7bnoXQRYdt%2Fzj%2FHJCNwZl4n8iy8%2FbCTBullz5wGvH98Ue6KM9JJ0wn%2BdPo8T4BlVVfAxoX3tvcYKxAMrGYYu%2BCvI1IQlUfdA6CvJ1z%2F1SKCzwiC2AP0WNwh8a%2BCGnnzAMy0qTaSy2IR6l817KoBsGQcudn3Bl9LbP9MabGieTeh8s0XZJzDYWNFC8%2B6LMKcb1zfJZYFq3%2BrYHrk2djES3cGLyuDz75yVkUjrwLADiql46%2BBB9UpKqG7JxZgWHf9u2%2BCeiDL94mToh5V%2BTpzWHZnzKQ6XvFhCXkW%2B0zce6eqA7%2FT20j3x%2FvfcBEC0rrLu3RmFtTTuusdupL6YaBiIsloZQk6TlLDowyc%2FbW7o5bdDQfF1zx0V%2BW9jl83QxFOIEwVjyXx%2Bulog0%2F5CfCsjbl9ilRpuz91FAiJZcZH%2Btu4gfe0%2BoJhaVPd7CFr7HMVX56Y4PxllYavY7tSKjnLjU%2FuXIhn5HUC2PvZQnWAaz1XF2IQV5caeqFGtr7sb9drG6QPzpmSDv11VT84VRz6Mu%2BGSFJXIvs4SqhCijpXPJeMZTDHIY9%2Beq9FrdDhD0ia1%2FaHzM4G%2BGTEgnoR0ZRKaz%2Bc0kw20LPltoVjGruoXq6MkWrlbIvLXK4nF1HuTkuedgmQtRH15fhq1d%2BtkgY8P6U8dMQMcvnn8dZIn%2BdzdHv86T2u%2FH%2FO71qGMktUVRS08jsgwH09VfOuULD76eDhvaw2L1%2FQk14ypiR4MPFDVp0lg0NsLbm%2FFJMdj5ckTPkTO3Lnjods2vuPe4Vow%2BO%2FG0QY6mAFZ4vPeq99E5llZI%2BBYgRAEbbLGWshbkOQM7pdzJ4sKcwtNRJvxVin69u8qJ6qqeDrKL49KmiB%2FEAHc%2B%2F2e1ZUfbQPfXhhb5Q8B54%2BcxUIfY0yymfqvpw55V7gIREQ3dY%2FaswxtYlpuirnewheC96dNeYqm9TVutl0jx4lEC%2FqMJyJtna4dKpFroYGdjhIwTQCGhnTyrIEQcw%3D%3D&Expires=1781646795)
+
+| Nivel router | Motor VRAM | Activo con |
+|---|---|---|
+| `chat` / `instantaneo` | TabbAPI EXL2 `:5000` | `ai_cluster` (default) |
+| `agil` | SGLang `:30000` | `ai_cluster --sglang` |
+| `profundo` / `phi-mayor-precision` | Ollama GPU `:11434` | siempre |
+| `masivo` | Ollama GPU `:11434` | siempre |
+
+Ollama GPU con DeepSeek R1 y Phi4-Reasoning nunca se ve afectado por el swap — siempre está disponible independientemente del modo. El intercambio solo afecta al nivel `chat`/`instantaneo` (TabbAPI) frente al nivel `agil` (SGLang). [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/48708411/7a2f9443-1ef1-47c4-8c84-9c05ddd1fffb/orchestrator_router_V14.py?AWSAccessKeyId=ASIA2F3EMEYET2DLZV2C&Signature=cVUltQeX%2Bg5M0pCdxTC%2FzxtNuEs%3D&x-amz-security-token=IQoJb3JpZ2luX2VjELX%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJHMEUCIGA2M%2FpXsKZXzW5Q8NzD9V6TZj2eOX0yg8f3dl%2BRaBNJAiEA%2BZAcamk33qK3PY7T3hjjEdGrh0txAeLSfwYfbR4XKREq8wQIfhABGgw2OTk3NTMzMDk3MDUiDBHvUNY%2FAezzvIS1pSrQBLxL2uwy7bnoXQRYdt%2Fzj%2FHJCNwZl4n8iy8%2FbCTBullz5wGvH98Ue6KM9JJ0wn%2BdPo8T4BlVVfAxoX3tvcYKxAMrGYYu%2BCvI1IQlUfdA6CvJ1z%2F1SKCzwiC2AP0WNwh8a%2BCGnnzAMy0qTaSy2IR6l817KoBsGQcudn3Bl9LbP9MabGieTeh8s0XZJzDYWNFC8%2B6LMKcb1zfJZYFq3%2BrYHrk2djES3cGLyuDz75yVkUjrwLADiql46%2BBB9UpKqG7JxZgWHf9u2%2BCeiDL94mToh5V%2BTpzWHZnzKQ6XvFhCXkW%2B0zce6eqA7%2FT20j3x%2FvfcBEC0rrLu3RmFtTTuusdupL6YaBiIsloZQk6TlLDowyc%2FbW7o5bdDQfF1zx0V%2BW9jl83QxFOIEwVjyXx%2Bulog0%2F5CfCsjbl9ilRpuz91FAiJZcZH%2Btu4gfe0%2BoJhaVPd7CFr7HMVX56Y4PxllYavY7tSKjnLjU%2FuXIhn5HUC2PvZQnWAaz1XF2IQV5caeqFGtr7sb9drG6QPzpmSDv11VT84VRz6Mu%2BGSFJXIvs4SqhCijpXPJeMZTDHIY9%2Beq9FrdDhD0ia1%2FaHzM4G%2BGTEgnoR0ZRKaz%2Bc0kw20LPltoVjGruoXq6MkWrlbIvLXK4nF1HuTkuedgmQtRH15fhq1d%2BtkgY8P6U8dMQMcvnn8dZIn%2BdzdHv86T2u%2FH%2FO71qGMktUVRS08jsgwH09VfOuULD76eDhvaw2L1%2FQk14ypiR4MPFDVp0lg0NsLbm%2FFJMdj5ckTPkTO3Lnjods2vuPe4Vow%2BO%2FG0QY6mAFZ4vPeq99E5llZI%2BBYgRAEbbLGWshbkOQM7pdzJ4sKcwtNRJvxVin69u8qJ6qqeDrKL49KmiB%2FEAHc%2B%2F2e1ZUfbQPfXhhb5Q8B54%2BcxUIfY0yymfqvpw55V7gIREQ3dY%2FaswxtYlpuirnewheC96dNeYqm9TVutl0jx4lEC%2FqMJyJtna4dKpFroYGdjhIwTQCGhnTyrIEQcw%3D%3D&Expires=1781646795)
+
+¿Quieres que genere ya la versión V27 del script con el flag `--sglang` implementado?
+
+
+
