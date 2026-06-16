@@ -966,8 +966,8 @@ if [[ -d "$EXL2_CHAT" ]] || [[ -d "$EXL2_CODER" ]]; then
         # Los args tras la imagen reemplazan el CMD completo → se los pasaría a python3 directamente.
         # Solución: NO pasar args en docker run. El modelo se configura via config.yml montado en /app/config.yml.
         # Generar config.yml dinámico con el modelo disponible:
-        TABBY_CONFIG_FILE="$AI_HOME/tabbyapi_config.yml"
-        TABBY_MODEL_NAME=""
+        local TABBY_CONFIG_FILE="$AI_HOME/tabbyapi_config.yml"
+        local TABBY_MODEL_NAME=""
         if [[ -d "$EXL2_CHAT" ]]; then
             TABBY_MODEL_NAME="llama-3.1-8b-exl2"
         elif [[ -d "$EXL2_CODER" ]]; then
@@ -1064,9 +1064,9 @@ if [[ -d "$SGLANG_MODEL" ]]; then
             --host 0.0.0.0 \
             --dtype float16 \
             --quantization awq \
-            --max-total-tokens 16384 \
-            --mem-fraction-static 0.50 \
+            --max-total-tokens 32768 \
             --tp-size 1 \
+            --enable-torch-compile \
             --trust-remote-code
     fi
 
@@ -1253,14 +1253,9 @@ YAML_EOF
     ok "settings.yml generado en $SEARXNG_SETTINGS (permisos: 600)"
 fi
 
-SEARXNG_PREV_HTTP=$(curl --noproxy "*" --ipv4 -s -m 3 -o /dev/null -w "%{http_code}" \
-    "http://localhost:${PORT_SEARXNG}/" 2>/dev/null || echo "000")
-if is_container_running "searxng" && [[ "$SEARXNG_PREV_HTTP" =~ ^(200|302|303)$ ]]; then
-    info "Contenedor 'searxng' en ejecución y respondiendo (HTTP ${SEARXNG_PREV_HTTP}). Reutilizando..."
+if is_container_running "searxng"; then
+    info "Contenedor 'searxng' en ejecución. Reutilizando estado..."
 else
-    if is_container_running "searxng"; then
-        info "Contenedor 'searxng' existe pero no responde (HTTP ${SEARXNG_PREV_HTTP}) — recreando..."
-    fi
     ensure_container_stopped "searxng"
     pull_if_last "$IMG_SEARXNG" "SearXNG"
     docker run -d \
@@ -1273,27 +1268,10 @@ else
         $IMG_SEARXNG
 fi
 
-# [V26-FIX-SX] Health-check HTTP real: SearXNG tarda en arrancar y wait_port da falso positivo TCP
-SEARXNG_READY=false
-info "Esperando que SearXNG inicialice su servidor HTTP en localhost:${PORT_SEARXNG}… (máx ${TIMEOUT_SEARXNG}s)"
-for _retry in $(seq 1 "$TIMEOUT_SEARXNG"); do
-    if ! docker ps --format '{{.Names}}' | grep -qx "searxng"; then
-        err "Contenedor 'searxng' ya no está en ejecución. Revisa: docker logs searxng"
-        break
-    fi
-    SEARXNG_HTTP=$(curl --noproxy "*" --ipv4 -s -m 2 -o /dev/null -w "%{http_code}" \
-        "http://localhost:${PORT_SEARXNG}/" 2>/dev/null || echo "000")
-    if [[ "$SEARXNG_HTTP" =~ ^(200|302|303)$ ]]; then
-        SEARXNG_READY=true
-        break
-    fi
-    sleep 1
-done
-if [[ "$SEARXNG_READY" == "true" ]]; then
+if wait_port "SearXNG" localhost "$PORT_SEARXNG" "$TIMEOUT_SEARXNG"; then
     ok "SearXNG ✔ → http://localhost:$PORT_SEARXNG"
 else
-    warn "SearXNG no respondió tras ${TIMEOUT_SEARXNG}s (último HTTP: ${SEARXNG_HTTP:-000})"
-    warn "Revisa: docker logs searxng --tail 20"
+    warn "SearXNG no respondió"
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
