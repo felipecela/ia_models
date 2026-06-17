@@ -82,4 +82,68 @@ Ollama GPU con DeepSeek R1 y Phi4-Reasoning nunca se ve afectado por el swap —
 ¿Quieres que genere ya la versión V27 del script con el flag `--sglang` implementado?
 
 
+---
+
+
+══════════════════════════════════════════════
+  Router V14 (FastAPI + Agent :8000)
+══════════════════════════════════════════════
+[INFO]  Deteniendo router anterior (PID 802291)…
+[INFO]  Router V14 lanzado — PID=807837
+[OK]    Router V14 ✔ → http://localhost:8000 (respondió en intento 2)
+[OK]    Agent Engine ✔ → /v1/agent/tasks respondiendo
+
+══════════════════════════════════════════════
+  Resumen del Cluster V36
+══════════════════════════════════════════════
+
+  Modo VRAM:  --sglang (SGLang AWQ activo, TabbAPI detenido)
+
+Servicio                       Puerto       Estado
+────────────────────────────── ──────────── ──────
+Ollama GPU (main)              :11434       ✔ OK
+Ollama CPU (router/emb)        :11435       ✔ OK
+TabbAPI ExLlamaV2              :5000        — omitido (modo --sglang)
+SGLang                         :30000       ✔ OK
+ChromaDB                       :8001        ✔ OK
+Obsidian Web UI                :3000        ✔ OK
+SearXNG                        :8888        ✔ OK
+Router V14 (Agent)             :8000        ✔ OK
+
+Configuración OpenClaw (OpenWebUI):
+  API URL:    http://localhost:8000/v1
+  Model:      ruteador-auto
+  Agent:      http://localhost:8000/v1/agent/tasks
+
+Autonomous Reasoning Agent:
+  Crear tarea:     curl -X POST http://localhost:8000/v1/agent/tasks -H 'Content-Type: application/json' -d '{"prompt": "...", "max_iterations": 3}'
+  Ver estado:      curl http://localhost:8000/v1/agent/tasks/{task_id}
+  Ver resultado:   curl http://localhost:8000/v1/agent/tasks/{task_id}/result
+  Stream progreso: curl http://localhost:8000/v1/agent/tasks/{task_id}/stream
+  Listar tareas:   curl http://localhost:8000/v1/agent/tasks
+  Cancelar:        curl -X DELETE http://localhost:8000/v1/agent/tasks/{task_id}
+
+Comandos útiles:
+  Ver logs:         tail -f /home/fcela-ga/ai_cluster/logs/router_v14.log
+  Indexar vault:    python3 /home/fcela-ga/ai_cluster/indexar_vault_v6.py
+  Reindexar todo:   python3 /home/fcela-ga/ai_cluster/indexar_vault_v6.py --clean
+  Métricas router:  curl -s http://localhost:8000/metrics | python3 -m json.tool
+  Health check:     curl -s http://localhost:8000/health | python3 -m json.tool
+  Detener router:   kill $(cat /home/fcela-ga/ai_cluster/router_v14.pid)
+  Parar cluster:    docker stop ollama-gpu-main ollama-cpu-router exllamav2-api sglang-server chromadb obsidian-kb searxng
+  Heartbeat chroma: curl -s http://127.0.0.1:8001/api/v1/heartbeat
+
+Flags del script:
+  ai_cluster            Arranque estándar (imágenes locales)
+  ai_cluster --last     Actualiza imágenes :latest antes de arrancar
+  ai_cluster --stop     Para el cluster ordenadamente
+  ai_cluster --status   Estado en tiempo real de todos los servicios
+  ai_cluster --reindex  Re-indexa el vault Obsidian en ChromaDB
+  ai_cluster --warmup   Carga modelos GPU en VRAM
+  ai_cluster --exl2     Activa TabbAPI EXL2 (KEEP_ALIVE=0 en Ollama)
+  ai_cluster --sglang   Activa SGLang AWQ (para TabbAPI, mem-frac 0.15)
+  ai_cluster --help     Muestra la ayuda completa
+
+
+
 
