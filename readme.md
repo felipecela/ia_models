@@ -1,3 +1,22 @@
+Protocolo de Acceso (El definitivo)
+Ejecuta el script bash Autoboot_Cluster_V9.sh.
+
+Como buena práctica, abre http://localhost:8080 en una pestaña de incógnito o nueva.
+
+Notarás que la molesta ventanita superior de "Usuario/Contraseña" de Nginx ya no aparece.
+
+Cuando veas la página de Panel de Gateway, rellena estos datos para establecer el puente definitivo:
+
+URL de WebSocket: ws://localhost:18789
+
+Token de la puerta de enlace: 7c9b84a2f1e63d5c8a4b29f7e0d1c4a5b6e7f8d9c0a1b2c3d4e5f6a7b8c9d0e1
+
+Pulsa "Conectar". Esta vez las dos piezas encajarán a la primera, no habrá ventanas emergentes adicionales y tendrás tu sistema Ready to chat. ¡Pruébalo y me cuentas!
+
+
+---
+
+
 ## SGLang en CPU/RAM: técnicamente posible, pero no con la imagen actual
 
 SGLang **sí tiene modo CPU** mediante el paquete `sglang-cpu` con la variable de entorno `SGLANG_USE_CPU_ENGINE=1`, pero **requiere una imagen Docker completamente diferente** a `lmsysorg/sglang:latest` (que es exclusivamente CUDA). Además, la documentación oficial indica que el soporte CPU real está optimizado para Intel Xeon 4ª gen+ con extensiones AMX, y en AMD/Intel genérico el rendimiento es tan bajo que inferencia en tokens/s es prácticamente inutilizable para un flujo de trabajo real. [leeroopedia](https://leeroopedia.com/index.php/Environment:Sgl_project_Sglang_CPU)
