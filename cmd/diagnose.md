@@ -440,4 +440,10 @@ docker run --rm ghcr.io/theroyallab/tabbyapi:latest --help 2>&1 | head -20
 ```
 
 
+# 1. Comprueba si el contenedor está vivo
+docker ps -f name=exllamav2-api
+
+# 2. Mira los logs del contenedor para ver por qué falla al cargar
+docker logs exllamav2-api --tail 50
+
 
