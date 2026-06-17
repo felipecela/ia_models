@@ -145,5 +145,243 @@ Flags del script:
   ai_cluster --help     Muestra la ayuda completa
 
 
+---
+
+
+ fcela-ga@O16-am0006ns  ~/sgoinfre/repos/ia_models   main  curl -s http://localhost:8000/v1/models | python3 -m json.tool
+{
+    "object": "list",
+    "data": [
+        {
+            "id": "ruteador-auto",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "Auto \u2014 clasificador 4 capas",
+            "context_window": 32768,
+            "max_tokens": 16384
+        },
+        {
+            "id": "chat",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "Chat (Llama 3.1 8B EXL2)",
+            "context_window": 8192,
+            "max_tokens": 4096
+        },
+        {
+            "id": "instantaneo",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "Instant\u00e1neo (Qwen2.5 Coder 7B)",
+            "context_window": 4096,
+            "max_tokens": 2048
+        },
+        {
+            "id": "agil",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "\u00c1gil (SGLang \u00b7 agentes, documentos)",
+            "context_window": 32768,
+            "max_tokens": 8192
+        },
+        {
+            "id": "profundo",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "Profundo (DeepSeek R1 14B)",
+            "context_window": 16384,
+            "max_tokens": 8192
+        },
+        {
+            "id": "phi-mayor-precision",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "Phi Mayor Precisi\u00f3n (phi4-reasoning:plus)",
+            "context_window": 16384,
+            "max_tokens": 4096
+        },
+        {
+            "id": "phi-optimizada",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "Phi Optimizada (phi4-reasoning:14b-q4_K_M)",
+            "context_window": 16384,
+            "max_tokens": 4096
+        },
+        {
+            "id": "masivo",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "Masivo (Qwen2.5 32B \u00b7 an\u00e1lisis extenso)",
+            "context_window": 32768,
+            "max_tokens": 16384
+        },
+        {
+            "id": "codigo",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "C\u00f3digo \u2192 Inst. (Qwen Coder 7B)",
+            "context_window": 4096,
+            "max_tokens": 2048
+        },
+        {
+            "id": "phi4",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "Phi-4 CPU (clasificador directo)",
+            "context_window": 16384,
+            "max_tokens": 4096
+        },
+        {
+            "id": "agent-autonomo",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "Agente Aut\u00f3nomo (planifica+ejecuta+valida)",
+            "context_window": 32768,
+            "max_tokens": 16384
+        },
+        {
+            "id": "deepseek-r1:14b",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "",
+            "context_window": null,
+            "max_tokens": null
+        },
+        {
+            "id": "qwen2.5:32b",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "",
+            "context_window": null,
+            "max_tokens": null
+        },
+        {
+            "id": "llama-3.1-8b-awq",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "",
+            "context_window": null,
+            "max_tokens": null
+        },
+        {
+            "id": "qwen2.5-coder-7b-exl2",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "",
+            "context_window": null,
+            "max_tokens": null
+        },
+        {
+            "id": "llama-3.1-8b-exl2",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "",
+            "context_window": null,
+            "max_tokens": null
+        },
+        {
+            "id": "phi4-reasoning:plus",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "",
+            "context_window": null,
+            "max_tokens": null
+        },
+        {
+            "id": "phi4-reasoning:14b-q4_K_M",
+            "object": "model",
+            "created": 1781702695,
+            "owned_by": "omen-local",
+            "name": "",
+            "context_window": null,
+            "max_tokens": null
+        }
+    ]
+}
+ fcela-ga@O16-am0006ns  ~/sgoinfre/repos/ia_models   main  curl -s http://localhost:8000/metrics | python3 -m json.tool
+{
+    "requests_por_nivel": {
+        "CHAT": 0,
+        "INSTANTANEO": 0,
+        "AGIL": 0,
+        "PROFUNDO": 0,
+        "PRECISO": 0,
+        "PRECISO_OPT": 0,
+        "MASIVO": 0,
+        "CODIGO": 0
+    },
+    "errores_por_nivel": {
+        "CHAT": 0,
+        "INSTANTANEO": 0,
+        "AGIL": 0,
+        "PROFUNDO": 0,
+        "PRECISO": 0,
+        "PRECISO_OPT": 0,
+        "MASIVO": 0,
+        "CODIGO": 0
+    },
+    "fallbacks": {},
+    "latencia_prom_ms": {
+        "CHAT": 0.0,
+        "INSTANTANEO": 0.0,
+        "AGIL": 0.0,
+        "PROFUNDO": 0.0,
+        "PRECISO": 0.0,
+        "PRECISO_OPT": 0.0,
+        "MASIVO": 0.0,
+        "CODIGO": 0.0
+    },
+    "cambios_vram": 0,
+    "rag_inyecciones": 0,
+    "clasificador_capas": {
+        "agente": 0,
+        "cache": 0,
+        "embed": 0,
+        "phi4": 0,
+        "default": 0,
+        "alias": 0
+    },
+    "cache_hit_ratio": 0.0,
+    "agent": {
+        "tasks_total": 0,
+        "tasks_ok": 0,
+        "tasks_failed": 0,
+        "tasks_cancelled": 0,
+        "avg_duration_s": 0.0,
+        "active_now": 0,
+        "max_active": 3
+    }
+}
+ fcela-ga@O16-am0006ns  ~/sgoinfre/repos/ia_models   main  curl -s http://localhost:8000/v1/agent/tasks
+{"tasks":[],"count":0}%                                                                        fcela-ga@O16-am0006ns  ~/sgoinfre/repos/ia_models   main  tail -f /home/fcela-ga/ai_cluster/logs/router_v14.log
+[15:23:31] INFO omen-router:  PHI4 CPU: ⚠ fallback a GPU
+[15:23:31] INFO omen-router:  Agent DB: /home/fcela-ga/ai_cluster/agent_data/agent_tasks.db
+[15:23:31] INFO omen-router:  Agent DB FS: ext4
+[15:23:31] INFO omen-router:  Max active tasks: 3
+[15:23:31] INFO omen-router:  Rate limit: 60 req/60.0s
+[15:23:31] INFO omen-router:  Admin auth: ⚠ sin protección
+[15:23:31] INFO omen-router:  Log: /home/fcela-ga/ai_cluster/logs/orchestrator_router.log (RotatingFileHandler 50MB×3)
+[15:23:31] INFO omen-router: ══════════════════════════════════════════════════════════════════
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+
 
 
