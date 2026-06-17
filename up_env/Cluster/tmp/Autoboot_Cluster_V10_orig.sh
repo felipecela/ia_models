@@ -1,33 +1,23 @@
 #!/bin/bash
-# ===== Archivo: Autoboot_OpenClaw_V11.sh =====
-# Sincronizado con OMEN AI Cluster V36 y Router V14
+# ===== Archivo: Autoboot_Cluster_V10.sh =====
 
 echo "================================================================="
-echo "=== INICIANDO CLÚSTER DE AGENTES (OPENCLAW) SINC. CON V36 ==="
+echo "=== INICIANDO CLÚSTER DE IA AUTÓNOMO Y ADAPTATIVO (OPENCLAW) ==="
 echo "================================================================="
 
-# Rutas alineadas con V36
-AI_HOME="$HOME/ai_cluster"
-ROUTER_SCRIPT="orchestrator_router_V14.py"
+DIR="$(pwd)"
 
-echo "[1/5] Limpiando contenedores anteriores de OpenClaw..."
+echo "[1/5] Limpiando procesos y contenedores anteriores..."
+pkill -f orchestrator_router 2>/dev/null
 docker stop openclaw-server 2>/dev/null && docker rm openclaw-server 2>/dev/null
 
-echo "[2/5] Verificando Ruteador Semántico V14..."
-if pgrep -f "$ROUTER_SCRIPT" >/dev/null; then
-    echo "[INFO] El Router V14 ya está activo (gestionado por V36). Reutilizando conexión..."
-else
-    echo "[INFO] Router V14 no detectado. Lanzándolo de forma autónoma..."
-    if [ ! -f "$AI_HOME/$ROUTER_SCRIPT" ]; then
-        echo "[ERROR] No encuentro el archivo $ROUTER_SCRIPT en $AI_HOME"
-        exit 1
-    fi
-    export AGENT_DB_DIR="$AI_HOME/agent_data"
-    export ROUTER_PORT=8000
-    mkdir -p "$AGENT_DB_DIR" "$AI_HOME/logs"
-    python3 "$AI_HOME/$ROUTER_SCRIPT" > "$AI_HOME/logs/openclaw_router_boot.log" 2>&1 &
-    sleep 5 # Dar tiempo a que levante FastAPI
+echo "[2/5] Lanzando Ruteador Semántico (Microsoft Phi-4 por CPU)..."
+PYTHON_SCRIPT="orchestrator_router_v4.py"
+if [ ! -f "$DIR/$PYTHON_SCRIPT" ]; then
+    echo "[ERROR] No encuentro el archivo $PYTHON_SCRIPT en $DIR"
+    exit 1
 fi
+python3 "$DIR/$PYTHON_SCRIPT" > "$DIR/router_boot.log" 2>&1 &
 
 echo "[3/5] Preparando Disco Nativo de Docker (Bypass de Permisos)..."
 # Usamos un volumen administrado por Docker para evitar conflictos de usuario
@@ -42,7 +32,7 @@ docker run -d \
   --add-host host.docker.internal:host-gateway \
   --add-host browser:127.0.0.1 \
   -e OPENCLAW_GATEWAY_TOKEN=7c9b84a2f1e63d5c8a4b29f7e0d1c4a5b6e7f8d9c0a1b2c3d4e5f6a7b8c9d0e1 \
-  -e OPENAI_API_KEY=empty \
+  -e OPENAI_API_KEY=sk-router-local \
   -e OPENAI_BASE_URL=http://host.docker.internal:8000/v1 \
   -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
   -v openclaw_data_final:/data \
@@ -51,7 +41,7 @@ docker run -d \
 echo "Esperando 15 segundos a que el contenedor inicialice su motor..."
 sleep 15
 
-echo "[5/5] Inyectando Parches Maestros de Red y Catálogo V36 en caliente..."
+echo "[5/5] Inyectando Parches Maestros de Red en caliente..."
 docker exec openclaw-server sh -c 'mkdir -p /data/.openclaw'
 
 # Inyección del parche CORS y LAN directo al sistema de archivos del contenedor
@@ -69,24 +59,16 @@ docker exec openclaw-server sh -c 'cat <<EOF > /data/.openclaw/openclaw.json
 }
 EOF'
 
-# Inyección de los proveedores (ACTUALIZADO AL ROUTER V14)
+# Inyección de los proveedores
 docker exec openclaw-server sh -c 'cat <<EOF > /data/initial_providers.json
 {
   "providers": [
     {
       "id": "openai_proxy",
-      "name": "OMEN AI Cluster (Router V14)",
+      "name": "Ruteador Semántico Local",
       "baseUrl": "http://host.docker.internal:8000/v1",
-      "apiKey": "empty",
-      "models": [
-        "ruteador-auto",
-        "chat",
-        "instantaneo",
-        "agil",
-        "profundo",
-        "masivo",
-        "codigo"
-      ],
+      "apiKey": "sk-router-local",
+      "models": ["llama-3.1-8b-awq", "deepseek-r1:14b", "qwen2.5:32b"],
       "enabled": true
     }
   ]
@@ -97,6 +79,6 @@ echo "Reiniciando contenedor para asimilar la configuración..."
 docker restart openclaw-server >/dev/null
 
 echo "================================================================="
-echo "¡ENTORNO DE AGENTES ABIERTO Y SINCRONIZADO CON V36!"
+echo "¡ENTORNO DE AGENTES ABIERTO Y CONFIGURADO!"
 echo "Entra directamente a: http://localhost:8080"
 echo "================================================================="
