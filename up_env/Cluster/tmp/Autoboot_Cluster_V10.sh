@@ -8,7 +8,7 @@ echo "================================================================="
 
 # Rutas alineadas con V36
 AI_HOME="$HOME/ai_cluster"
-ROUTER_SCRIPT="orchestrator_router_V14.py"
+ROUTER_SCRIPT="orchestrator_router_V4.py"
 
 echo "[1/5] Limpiando contenedores anteriores de OpenClaw..."
 docker stop openclaw-server 2>/dev/null && docker rm openclaw-server 2>/dev/null
