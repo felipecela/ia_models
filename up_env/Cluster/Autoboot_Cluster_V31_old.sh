@@ -3,24 +3,17 @@
 # ║ OMEN AI Cluster — Autoboot V31                                             ║
 # ║ RTX 4070 8GB · Intel Ultra 7 · 32GB RAM · SSD exFAT /mnt/ai_core          ║
 # ╠══════════════════════════════════════════════════════════════════════════════╣
-# ║ V31 — Correcciones y mejoras sobre V30:                                    ║
-# ║  ✔ [V31-B1] --exl2: timeout Ollama GPU aumentado de 90s → 180s al         ║
-# ║             recrear el contenedor. Init CUDA + GPU setup desde cero        ║
-# ║             tarda 90-120s → con 90s el wait_port fallaba siempre.          ║
-# ║  ✔ [V31-B2] --sglang: mem-fraction-static corregido 0.50 → 0.15.          ║
-# ║             0.50 reservaba 4.0GB para KV cache; el modelo AWQ usa 5.4GB.   ║
-# ║             5.4+4.0=9.4GB > 8GB VRAM → OOM. Con 0.15: 5.4+1.2=6.6GB ✔   ║
-# ║             max-total-tokens ajustado 16384 → 8192 (coherente con 1.2GB). ║
-# ║  ✔ [V31-E1] Flag --exl2 añadido como simétrico de --sglang. Activa        ║
-# ║             TabbAPI con KEEP_ALIVE=0 en Ollama GPU. Mutuamente             ║
-# ║             excluyente con --sglang. Sin el flag: modo default sin cambios.║
-# ║  ✔ [V31-E2] Verificación integridad volumen chromadb_data y directorio     ║
-# ║             appdata Obsidian antes de reutilizar (write test).             ║
-# ╠═══════════════════════════════════════════════════════════════════════════╣
-# ║ V30 — Heredado (correcciones V30-B1..B3):                                  ║
-# ║  ✔ [V30-B1] TabbAPI: --model → --model-name (argparse ambigüedad resuelta) ║
-# ║  ✔ [V30-B2] SearXNG: verificación de port binding antes de reutilizar.     ║
-# ║  ✔ [V30-B3] SearXNG settings.yml: eliminados engines inexistentes          ║
+# ║  V31 — Cambios sobre V30:                                                  ║
+# ║  ✔ [V31-E1] Flag --exl2: TabbAPI ahora es opt-in (análogo a --sglang).   ║
+# ║             Por defecto: TabbAPI NO arranca (toda VRAM para Ollama GPU).  ║
+# ║             Con --exl2:  Ollama GPU KEEP_ALIVE=0 (libera VRAM demanda) y  ║
+# ║             TabbAPI arranca con --max-seq-len 4096. --exl2 y --sglang     ║
+# ║             son mutuamente excluyentes (no se combinan).                  ║
+# ║  ✔ [V31-E2] Verificación de integridad de volúmenes Docker críticos       ║
+# ║             (chromadb_data, obsidian_appdata) antes de reutilizar.        ║
+# ║             Volumen inconsistente → recreado limpio automáticamente.      ║
+# ║  ✔ [V31-E3] --stop, --status y --help actualizados para --exl2.          ║
+# ║  ✔ [V31-E4] Resumen: Modo VRAM refleja default/--exl2/--sglang.          ║
 # ╠═══════════════════════════════════════════════════════════════════════════╣
 # ║  ✔ [V29-B1] TabbAPI: CMD correcto → 'main.py --host 0.0.0.0 [args]'       ║
 # ║             ENTRYPOINT=python3 ya existe en imagen; pasar solo args de CMD  ║
@@ -95,12 +88,36 @@ _FLAG_SGLANG=false    # [V27-S1]
 _FLAG_EXL2=false      # [V31-E1]
 
 # ─── Función de ayuda ────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────────────────────
+# [V31-E2] Verificar integridad de un volumen Docker crítico.
+# Si el volumen existe pero un contenedor test no puede escribir en él,
+# se considera corrupto y se elimina para recrearlo limpio.
+# Uso: verify_volume <nombre_volumen> <imagen_test>
+# ─────────────────────────────────────────────────────────────────────────────
+verify_volume() {
+    local vol_name="$1"
+    local test_image="${2:-busybox:latest}"
+    if ! docker volume ls --format '{{.Name}}' | grep -qx "$vol_name"; then
+        return 0  # No existe: se creará después normalmente
+    fi
+    # Test de escritura dentro del volumen
+    local test_ok
+    test_ok=$(docker run --rm -v "${vol_name}:/testmnt" "$test_image"         sh -c 'touch /testmnt/.integrity_check && rm /testmnt/.integrity_check && echo OK' 2>/dev/null || echo "FAIL")
+    if [[ "$test_ok" != "OK" ]]; then
+        warn "[V31-E2] Volumen '${vol_name}' parece corrupto — eliminando para recrear limpio…"
+        docker volume rm "$vol_name" >/dev/null 2>&1 || true
+        ok "Volumen '${vol_name}' eliminado — se recreará en el siguiente paso"
+    else
+        ok "Volumen '${vol_name}': integridad ✔"
+    fi
+}
 show_help() {
     cat << 'HELP_EOF'
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║  OMEN AI Cluster — Autoboot V31                                            ║
-║  Uso: ai_cluster [--last] [--exl2|--sglang] [--help]                                         ║
+║  Uso: ai_cluster [--last] [--help]                                         ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║  FLAGS DISPONIBLES                                                         ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
@@ -134,16 +151,11 @@ show_help() {
 ║                 indexar_vault_v6.py --clean. Requiere cluster activo.      ║
 ║                                                                            ║
 ║  --warmup       Carga los modelos Ollama GPU en VRAM enviando un prompt    ║
+║  --exl2         Modo VRAM opt-in: activa TabbAPI EXL2 (KEEP_ALIVE Ollama=0)║
+║  --sglang       Modo VRAM alternativo: activa SGLang AWQ (para TabbAPI)      ║
+║                 y arranca SGLang (llama-3.1-8b-awq) con configuración      ║
+║                 conservadora. Ambos motores no pueden coexistir en 8GB.    ║
 ║                 mínimo a cada uno. No arranca el cluster completo.         ║
-║                                                                            ║
-║  --exl2         Activa TabbAPI EXL2 (opt-in). Recrea Ollama GPU con        ║
-║                 KEEP_ALIVE=0 para ceder VRAM bajo demanda. Timeout         ║
-║                 aumentado a 180s (arranca desde cero tras recrear). [V31]  ║
-║                 Mutuamente excluyente con --sglang.                        ║
-║                                                                            ║
-║  --sglang       Modo VRAM alternativo: para TabbAPI (libera ~6.9GB VRAM)   ║
-║                 y arranca SGLang (llama-3.1-8b-awq, mem-fraction 0.15).   ║
-║                 Mutuamente excluyente con --exl2.                          ║
 ║                                                                            ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║  EJEMPLOS                                                                  ║
@@ -151,8 +163,8 @@ show_help() {
 ║                                                                            ║
 ║  ai_cluster              # Arranque normal (imágenes locales)              ║
 ║  ai_cluster --last       # Arranque actualizando todas las imágenes        ║
-║  ai_cluster --exl2       # Activa TabbAPI EXL2 (KEEP_ALIVE=0 en Ollama)    ║
-║  ai_cluster --sglang     # Activa SGLang AWQ (para TabbAPI, mem-frac 0.15)  ║
+║  ai_cluster --exl2       # Activa TabbAPI EXL2 (Ollama KEEP_ALIVE=0)       ║
+║  ai_cluster --sglang     # Activa SGLang AWQ (para TabbAPI para liberar VRAM)║
 ║  ai_cluster --help       # Muestra esta ayuda                              ║
 ║                                                                            ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
@@ -202,6 +214,7 @@ for _arg in "$@"; do
     esac
 done
 
+# Ejecutar acciones inmediatas (no requieren configuración cargada)
 # [V31-E1] Validar exclusión mutua --exl2 / --sglang
 if [[ "$_FLAG_EXL2" == "true" ]] && [[ "$_FLAG_SGLANG" == "true" ]]; then
     echo "[ERROR] --exl2 y --sglang son mutuamente excluyentes."
@@ -209,7 +222,6 @@ if [[ "$_FLAG_EXL2" == "true" ]] && [[ "$_FLAG_SGLANG" == "true" ]]; then
     exit 1
 fi
 
-# Ejecutar acciones inmediatas (no requieren configuración cargada)
 if [[ "$_FLAG_HELP" == "true" ]]; then
     show_help
     exit 0
@@ -519,7 +531,7 @@ if [[ "$_FLAG_STATUS" == "true" ]]; then
     declare -A SVC_URLS=(
         ["Ollama GPU     :${PORT_OLLAMA_GPU}"]="http://localhost:${PORT_OLLAMA_GPU}/api/tags"
         ["Ollama CPU     :${PORT_OLLAMA_CPU}"]="http://localhost:${PORT_OLLAMA_CPU}/api/tags"
-        ["TabbAPI EXL2   :${PORT_TABBYAPI}"]="http://localhost:${PORT_TABBYAPI}/health"
+        ["TabbAPI EXL2   :${PORT_TABBYAPI}"]="http://localhost:${PORT_TABBYAPI}/health"  # --exl2 para activar
         ["SGLang         :${PORT_SGLANG}"]="http://localhost:${PORT_SGLANG}/health"
         ["ChromaDB       :${PORT_CHROMADB}"]="http://localhost:${PORT_CHROMADB}/api/v1/heartbeat"
         ["Obsidian UI    :${PORT_OBSIDIAN}"]="http://localhost:${PORT_OBSIDIAN}"
@@ -663,7 +675,7 @@ trap cleanup EXIT
 # ═══════════════════════════════════════════════════════════════════════════════
 # INICIO
 # ═══════════════════════════════════════════════════════════════════════════════
-section "OMEN AI Cluster — Autoboot V30"
+section "OMEN AI Cluster — Autoboot V31"
 info "$(date '+%Y-%m-%d %H:%M:%S')"
 echo ""
 
@@ -899,6 +911,8 @@ fi
 # VOLUMEN CHROMADB
 # ═══════════════════════════════════════════════════════════════════════════════
 section "Volumen ChromaDB"
+# [V31-E2] Verificar integridad antes de reutilizar
+verify_volume "chromadb_data" "busybox:latest"
 if ! docker volume ls --format '{{.Name}}' | grep -qx "chromadb_data"; then
     docker volume create chromadb_data
     ok "Volumen 'chromadb_data' creado"
@@ -913,23 +927,13 @@ section "1/7 — Ollama GPU (:$PORT_OLLAMA_GPU)"
 
 mkdir -p "${MODELS_DIR}/ollama" 2>/dev/null || true
 
-# [V31-B1] Timeout dinámico: 90s al reutilizar, 180s al recrear (init CUDA tarda 90-120s)
-OLLAMA_GPU_TIMEOUT="$TIMEOUT_OLLAMA"
-
-# [V31-E1] Determinar KEEP_ALIVE según modo
-OLLAMA_KEEP_ALIVE_VAL="24h"
-if [[ "$_FLAG_EXL2" == "true" ]]; then
-    OLLAMA_KEEP_ALIVE_VAL="0"
-fi
-
 if is_container_running "ollama-gpu-main"; then
+    # [V31-E1] Si modo --exl2 y el contenedor ya corre, verificar que KEEP_ALIVE sea 0
     if [[ "$_FLAG_EXL2" == "true" ]]; then
-        # En modo --exl2: comprobar si el contenedor actual ya tiene KEEP_ALIVE=0
-        CUR_KEEPALIVE=$(docker inspect ollama-gpu-main             --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null             | grep "^OLLAMA_KEEP_ALIVE=" | cut -d= -f2 || echo "24h")
+        CUR_KEEPALIVE=$(docker inspect ollama-gpu-main             --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null             | grep OLLAMA_KEEP_ALIVE | cut -d= -f2 || echo "24h")
         if [[ "$CUR_KEEPALIVE" != "0" ]]; then
-            info "[--exl2] Contenedor Ollama GPU tiene KEEP_ALIVE=${CUR_KEEPALIVE} — recreando con KEEP_ALIVE=0…"
+            info "[--exl2] Contenedor Ollama GPU existe con KEEP_ALIVE=${CUR_KEEPALIVE} — recreando con KEEP_ALIVE=0…"
             ensure_container_stopped "ollama-gpu-main"
-            OLLAMA_GPU_TIMEOUT=180  # [V31-B1] Arranque desde cero → init CUDA ~90-120s
         else
             info "Contenedor 'ollama-gpu-main' en ejecución con KEEP_ALIVE=0 (modo --exl2). Reutilizando..."
         fi
@@ -937,13 +941,14 @@ if is_container_running "ollama-gpu-main"; then
         info "Contenedor 'ollama-gpu-main' en ejecución. Reutilizando (ahorrando VRAM)..."
     fi
 else
-    # Contenedor no existe: si es --exl2 aumentar timeout (arranca desde cero)
-    [[ "$_FLAG_EXL2" == "true" ]] && OLLAMA_GPU_TIMEOUT=180  # [V31-B1]
-fi
-
-if ! is_container_running "ollama-gpu-main"; then
     ensure_container_stopped "ollama-gpu-main"
     pull_if_last "$IMG_OLLAMA" "Ollama GPU"
+    # [V31-E1] En modo --exl2, Ollama GPU libera VRAM bajo demanda (KEEP_ALIVE=0)
+    OLLAMA_KEEP_ALIVE_VAL="24h"
+    if [[ "$_FLAG_EXL2" == "true" ]]; then
+        OLLAMA_KEEP_ALIVE_VAL="0"
+        info "[--exl2] Ollama GPU arrancará con KEEP_ALIVE=0 para liberar VRAM a TabbAPI"
+    fi
     docker run -d \
         --name ollama-gpu-main \
         --network "$DOCKER_NET" \
@@ -960,7 +965,7 @@ if ! is_container_running "ollama-gpu-main"; then
         $IMG_OLLAMA
 fi
 
-wait_port "Ollama GPU" localhost "$PORT_OLLAMA_GPU" "$OLLAMA_GPU_TIMEOUT"  # [V31-B1]
+wait_port "Ollama GPU" localhost "$PORT_OLLAMA_GPU" "$TIMEOUT_OLLAMA"
 
 GPU_PULL_PIDS=()
 for model in "${OLLAMA_GPU_MODELS[@]}"; do
@@ -1042,12 +1047,14 @@ section "3/7 — TabbAPI ExLlamaV2 (:$PORT_TABBYAPI)"
 EXL2_CHAT="${MODELS_DIR}/llama-3.1-8b-exl2"
 EXL2_CODER="${MODELS_DIR}/qwen2.5-coder-7b-exl2"
 
-# [V31-E1] TabbAPI es opt-in: solo arranca con --exl2.
-# Sin --exl2 ni --sglang (modo default): TabbAPI omitido, toda VRAM para Ollama GPU.
+# [V31-E1] TabbAPI ahora es opt-in via --exl2.
+# Por defecto (sin flag): TabbAPI NO arranca → Ollama GPU tiene VRAM completa.
+# Con --exl2:  TabbAPI arranca con --max-seq-len 4096 (VRAM liberada por KEEP_ALIVE=0).
+# Con --sglang: TabbAPI sigue detenido (igual que antes).
 if [[ "$_FLAG_SGLANG" == "true" ]]; then
-    # Modo --sglang: TabbAPI no debe estar corriendo
-    if is_container_running "exllamav2-api"; then
-        info "[--sglang] Deteniendo TabbAPI para liberar VRAM (~6.9GB)…"
+    # Limpiar contenedor residual si existe
+    if is_container_running "exllamav2-api" || docker ps -a --format '{{.Names}}' | grep -qx "exllamav2-api"; then
+        info "[--sglang] Deteniendo TabbAPI residual para liberar VRAM…"
         docker stop exllamav2-api >/dev/null 2>&1 || true
         docker rm   exllamav2-api >/dev/null 2>&1 || true
         ok "TabbAPI detenido — VRAM liberada para SGLang"
@@ -1055,71 +1062,77 @@ if [[ "$_FLAG_SGLANG" == "true" ]]; then
         info "[--sglang] TabbAPI no estaba activo — nada que detener"
     fi
     warn "TabbAPI omitido en modo --sglang"
-elif [[ "$_FLAG_EXL2" != "true" ]]; then
-    # Modo default (sin --exl2): detener TabbAPI residual si existiera y omitir
-    if is_container_running "exllamav2-api"; then
+
+elif [[ "$_FLAG_EXL2" == "true" ]]; then
+    # [V31-E1] Modo --exl2: verificar modelos disponibles y arrancar TabbAPI
+    if [[ -d "$EXL2_CHAT" ]] || [[ -d "$EXL2_CODER" ]]; then
+        info "[--exl2] Activando TabbAPI EXL2 (max-seq-len: 4096)…"
+        # Verificar si el contenedor ya existe y responde
+        TABBY_HEALTH=$(curl --noproxy "*" --ipv4 -s -m 3 -o /dev/null -w "%{http_code}" \
+            "http://localhost:${PORT_TABBYAPI}/health" 2>/dev/null || echo "000")
+        if is_container_running "exllamav2-api" && [[ "$TABBY_HEALTH" == "200" ]]; then
+            info "Contenedor 'exllamav2-api' en ejecución y respondiendo (HTTP 200). Reutilizando..."
+        else
+            if is_container_running "exllamav2-api"; then
+                info "Contenedor 'exllamav2-api' existe pero API no responde (HTTP ${TABBY_HEALTH}) — recreando..."
+            fi
+            ensure_container_stopped "exllamav2-api"
+            pull_if_last "$IMG_TABBYAPI" "TabbAPI ExLlamaV2"
+            # [V29-B1] ENTRYPOINT=python3, CMD=main.py --host 0.0.0.0
+            # [V31-E1] --max-seq-len reducido a 4096 para liberar VRAM (~2GB menos)
+            docker run -d \
+                --name exllamav2-api \
+                --network "$DOCKER_NET" \
+                --gpus all \
+                -p "${PORT_TABBYAPI}:5000" \
+                -v "${MODELS_DIR}:/models:ro" \
+                --restart unless-stopped \
+                $IMG_TABBYAPI \
+                main.py \
+                --host 0.0.0.0 \
+                --model-dir /models \
+                --model-name "llama-3.1-8b-exl2" \
+                --max-seq-len 4096 \
+                --port 5000
+        fi  # cierra: if reutilizar ... else recrear
+
+        # [V26-F2a] Health-check HTTP real (no TCP)
+        TABBY_READY=false
+        info "Esperando que TabbAPI cargue el modelo EXL2 en localhost:${PORT_TABBYAPI}… (máx ${TIMEOUT_TABBYAPI}s)"
+        for _retry in $(seq 1 "$TIMEOUT_TABBYAPI"); do
+            if ! docker ps --format '{{.Names}}' | grep -qx "exllamav2-api"; then
+                err "Contenedor 'exllamav2-api' ya no está en ejecución. Revisa: docker logs exllamav2-api"
+                break
+            fi
+            TABBY_HTTP=$(curl --noproxy "*" --ipv4 -s -m 2 -o /dev/null -w "%{http_code}" \
+                "http://localhost:${PORT_TABBYAPI}/health" 2>/dev/null || echo "000")
+            if [[ "$TABBY_HTTP" == "200" ]]; then
+                TABBY_READY=true
+                break
+            fi
+            sleep 1
+        done
+        if [[ "$TABBY_READY" == "true" ]]; then
+            ok "TabbAPI ExLlamaV2 ✔ — API lista (puerto ${PORT_TABBYAPI})"
+        else
+            warn "TabbAPI no respondió tras ${TIMEOUT_TABBYAPI}s (último HTTP: ${TABBY_HTTP:-000})"
+            warn "Revisa: docker logs exllamav2-api --tail 30"
+            docker logs --tail=20 exllamav2-api 2>&1 || true
+        fi
+    else
+        warn "[--exl2] Modelos EXL2 no encontrados en $MODELS_DIR — TabbAPI no puede arrancar"
+        warn "  Esperados: $EXL2_CHAT  o  $EXL2_CODER"
+    fi
+
+else
+    # Modo default: TabbAPI NO arranca. Limpiar contenedor residual si existe.
+    if is_container_running "exllamav2-api" || docker ps -a --format '{{.Names}}' | grep -qx "exllamav2-api"; then
         info "[default] Deteniendo TabbAPI residual (modo default: VRAM para Ollama GPU)…"
         docker stop exllamav2-api >/dev/null 2>&1 || true
         docker rm   exllamav2-api >/dev/null 2>&1 || true
     fi
     warn "TabbAPI omitido (modo default). Usa --exl2 para activarlo."
-elif [[ -d "$EXL2_CHAT" ]] || [[ -d "$EXL2_CODER" ]]; then
-    # [V26-F1] Si el contenedor existe, verificar que la API HTTP responde antes de reutilizar
-    TABBY_HEALTH=$(curl --noproxy "*" --ipv4 -s -m 3 -o /dev/null -w "%{http_code}" \
-        "http://localhost:${PORT_TABBYAPI}/health" 2>/dev/null || echo "000")
-    if is_container_running "exllamav2-api" && [[ "$TABBY_HEALTH" == "200" ]]; then
-        info "Contenedor 'exllamav2-api' en ejecución y respondiendo (HTTP 200). Reutilizando..."
-    else
-        if is_container_running "exllamav2-api"; then
-            info "Contenedor 'exllamav2-api' existe pero API no responde (HTTP ${TABBY_HEALTH}) — recreando..."
-        fi
-        ensure_container_stopped "exllamav2-api"
-        pull_if_last "$IMG_TABBYAPI" "TabbAPI ExLlamaV2"
-        # [V29-B1] ENTRYPOINT=python3, CMD=main.py --host 0.0.0.0
-        # Pasar solo los args que extienden el CMD; python3 lo invoca la imagen.
-        # NO añadir 'python3' ni '-m tabbyapi' — la imagen ya los tiene en ENTRYPOINT/CMD.
-        docker run -d \
-            --name exllamav2-api \
-            --network "$DOCKER_NET" \
-            --gpus all \
-            -p "${PORT_TABBYAPI}:5000" \
-            -v "${MODELS_DIR}:/models:ro" \
-            --restart unless-stopped \
-            $IMG_TABBYAPI \
-            main.py \
-            --host 0.0.0.0 \
-            --model-dir /models \
-            --model-name "llama-3.1-8b-exl2" \
-            --max-seq-len 8192 \
-            --port 5000
-    fi  # cierra: if is_container_running && health 200 ... else ... fi
-
-    # [V26-F2a] Health-check HTTP real (no TCP): TabbyAPI necesita tiempo para cargar el modelo EXL2
-    TABBY_READY=false
-    info "Esperando que TabbAPI cargue el modelo EXL2 en localhost:${PORT_TABBYAPI}… (máx ${TIMEOUT_TABBYAPI}s)"
-    for _retry in $(seq 1 "$TIMEOUT_TABBYAPI"); do
-        if ! docker ps --format '{{.Names}}' | grep -qx "exllamav2-api"; then
-            err "Contenedor 'exllamav2-api' ya no está en ejecución. Revisa: docker logs exllamav2-api"
-            break
-        fi
-        TABBY_HTTP=$(curl --noproxy "*" --ipv4 -s -m 2 -o /dev/null -w "%{http_code}" \
-            "http://localhost:${PORT_TABBYAPI}/health" 2>/dev/null || echo "000")
-        if [[ "$TABBY_HTTP" == "200" ]]; then
-            TABBY_READY=true
-            break
-        fi
-        sleep 1
-    done
-    if [[ "$TABBY_READY" == "true" ]]; then
-        ok "TabbAPI ExLlamaV2 ✔ — API lista (puerto ${PORT_TABBYAPI})"
-    else
-        warn "TabbAPI no respondió tras ${TIMEOUT_TABBYAPI}s (último HTTP: ${TABBY_HTTP:-000})"
-        warn "Revisa: docker logs exllamav2-api --tail 30"
-        docker logs --tail=20 exllamav2-api 2>&1 || true
-    fi
-else
-    warn "Modelos EXL2 no encontrados en $MODELS_DIR — omitiendo TabbAPI"
-fi  # fin if _FLAG_SGLANG / elif modelos EXL2
+fi  # fin if _FLAG_SGLANG / elif _FLAG_EXL2 / else default
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 4. SGLang (:30000) — [V21-B3] Timeout aumentado, [V21-B9] Verificación modelo
@@ -1150,10 +1163,7 @@ elif [[ -d "$SGLANG_MODEL" ]]; then
     else
         ensure_container_stopped "sglang-server"
         pull_if_last "$IMG_SGLANG" "SGLang"
-        # [V27-S2][V31-B2] Parámetros corregidos:
-        #   mem-fraction-static 0.15 (antes 0.50 → OOM: modelo AWQ usa 5.4GB, 8GB×0.50=4.0GB KV → 9.4GB>8GB)
-        #   Con 0.15: 8GB×0.15=1.2GB KV cache → 5.4+1.2=6.6GB < 8GB ✔
-        #   max-total-tokens 8192 (antes 16384; coherente con ~1.2GB KV disponible)
+        # [V27-S2] Parámetros conservadores: mem-fraction 0.50, max-tokens 16384, sin torch-compile
         docker run -d \
             --name sglang-server \
             --network "$DOCKER_NET" \
@@ -1169,8 +1179,8 @@ elif [[ -d "$SGLANG_MODEL" ]]; then
             --host 0.0.0.0 \
             --dtype float16 \
             --quantization awq \
-            --max-total-tokens 8192 \
-            --mem-fraction-static 0.15 \
+            --max-total-tokens 16384 \
+            --mem-fraction-static 0.50 \
             --tp-size 1 \
             --trust-remote-code
     fi
@@ -1274,6 +1284,17 @@ fi
 # 6. OBSIDIAN WEB (:3000)
 # ═══════════════════════════════════════════════════════════════════════════════
 section "6/7 — Obsidian (:$PORT_OBSIDIAN)"
+
+# [V31-E2] Verificar que el directorio de config de Obsidian es accesible y no está corrupto
+if [[ -d "$OBSIDIAN_APPDATA" ]]; then
+    if ! touch "${OBSIDIAN_APPDATA}/.integrity_check" 2>/dev/null; then
+        warn "[V31-E2] Directorio de appdata Obsidian no escribible: ${OBSIDIAN_APPDATA}"
+        warn "  Verifica permisos: ls -la $(dirname ${OBSIDIAN_APPDATA})"
+    else
+        rm -f "${OBSIDIAN_APPDATA}/.integrity_check"
+        ok "Directorio appdata Obsidian: integridad ✔"
+    fi
+fi
 
 if is_container_running "obsidian-kb"; then
     info "Contenedor 'obsidian-kb' en ejecución. Reutilizando estado..."
@@ -1618,11 +1639,11 @@ fi
 section "Resumen del Cluster V31"
 
 echo ""
-# [V27-S3][V31-E1] Modo VRAM activo
+# [V31-E4] Modo VRAM activo
 if [[ "$_FLAG_SGLANG" == "true" ]]; then
     echo -e "  Modo VRAM:  ${BLD}--sglang${NC} (SGLang AWQ activo, TabbAPI detenido)"
 elif [[ "$_FLAG_EXL2" == "true" ]]; then
-    echo -e "  Modo VRAM:  ${BLD}--exl2${NC}   (TabbAPI EXL2 activo, Ollama GPU KEEP_ALIVE=0)"
+    echo -e "  Modo VRAM:  ${BLD}--exl2${NC}   (TabbAPI EXL2 activo, Ollama KEEP_ALIVE=0)"
 else
     echo -e "  Modo VRAM:  ${BLD}default${NC}  (Ollama GPU VRAM completa — usa --exl2 o --sglang)"
 fi
@@ -1663,24 +1684,30 @@ check_service() {
 check_service "Ollama GPU (main)"        localhost    "$PORT_OLLAMA_GPU"
 check_service "Ollama CPU (router/emb)"  localhost    "$PORT_OLLAMA_CPU"
 
-# [V27-S3][V31-E1] TabbAPI: distingue modo --sglang / default / --exl2
+# [V31-E4] TabbAPI: distingue modo --sglang, --exl2 y default
 if [[ "$_FLAG_SGLANG" == "true" ]]; then
     printf "%-30s %-12s %b\n" "TabbAPI ExLlamaV2" ":${PORT_TABBYAPI}" "${YEL}— omitido (modo --sglang)${NC}"
-elif [[ "$_FLAG_EXL2" != "true" ]]; then
-    printf "%-30s %-12s %b\n" "TabbAPI ExLlamaV2" ":${PORT_TABBYAPI}" "${YEL}— omitido (modo default; usa --exl2)${NC}"
-elif docker ps --format '{{.Names}}' | grep -qx "exllamav2-api"; then
-    check_service "TabbAPI ExLlamaV2"    localhost    "$PORT_TABBYAPI"
+elif [[ "$_FLAG_EXL2" == "true" ]]; then
+    if docker ps --format '{{.Names}}' | grep -qx "exllamav2-api"; then
+        check_service "TabbAPI ExLlamaV2"    localhost    "$PORT_TABBYAPI"
+    else
+        printf "%-30s %-12s %b\n" "TabbAPI ExLlamaV2" ":${PORT_TABBYAPI}" "${YEL}⚠ modelos EXL2 no encontrados${NC}"
+    fi
 else
-    printf "%-30s %-12s %b\n" "TabbAPI ExLlamaV2" ":${PORT_TABBYAPI}" "${YEL}— modelos EXL2 no instalados${NC}"
+    printf "%-30s %-12s %b\n" "TabbAPI ExLlamaV2" ":${PORT_TABBYAPI}" "${YEL}— omitido (modo default; usa --exl2)${NC}"
 fi
 
-# [V27-S3][V31-E1] SGLang: distingue modo --sglang / default / --exl2
-if [[ "$_FLAG_SGLANG" != "true" ]]; then
-    printf "%-30s %-12s %b\n" "SGLang" ":${PORT_SGLANG}" "${YEL}— omitido (modo default; usa --sglang)${NC}"
-elif docker ps --format '{{.Names}}' | grep -qx "sglang-server"; then
-    check_service "SGLang"               localhost    "$PORT_SGLANG"
+# [V31-E4] SGLang: distingue modo --sglang, --exl2 y default
+if [[ "$_FLAG_SGLANG" == "true" ]]; then
+    if docker ps --format '{{.Names}}' | grep -qx "sglang-server"; then
+        check_service "SGLang"               localhost    "$PORT_SGLANG"
+    else
+        printf "%-30s %-12s %b\n" "SGLang" ":${PORT_SGLANG}" "${YEL}⚠ modelo AWQ no instalado${NC}"
+    fi
+elif [[ "$_FLAG_EXL2" == "true" ]]; then
+    printf "%-30s %-12s %b\n" "SGLang" ":${PORT_SGLANG}" "${YEL}— omitido (modo --exl2; usa --sglang)${NC}"
 else
-    printf "%-30s %-12s %b\n" "SGLang" ":${PORT_SGLANG}" "${YEL}— modelo AWQ no instalado${NC}"
+    printf "%-30s %-12s %b\n" "SGLang" ":${PORT_SGLANG}" "${YEL}— omitido (modo default; usa --sglang)${NC}"
 fi
 
 check_service "ChromaDB"                 127.0.0.1   "$PORT_CHROMADB"
@@ -1719,8 +1746,6 @@ echo "  ai_cluster --stop     Para el cluster ordenadamente"
 echo "  ai_cluster --status   Estado en tiempo real de todos los servicios"
 echo "  ai_cluster --reindex  Re-indexa el vault Obsidian en ChromaDB"
 echo "  ai_cluster --warmup   Carga modelos GPU en VRAM"
-echo "  ai_cluster --exl2     Activa TabbAPI EXL2 (KEEP_ALIVE=0 en Ollama)"
-echo "  ai_cluster --sglang   Activa SGLang AWQ (para TabbAPI, mem-frac 0.15)"
 echo "  ai_cluster --help     Muestra la ayuda completa"
 if [[ "$WATCHDOG_ENABLED" == "true" ]]; then
     echo "  Watchdog:         tail -f $LOG_DIR/watchdog.log"
