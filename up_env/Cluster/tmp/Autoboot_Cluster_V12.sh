@@ -299,7 +299,7 @@ if [ -n "$PHI4_CLASIFICADOR" ]; then
         ok "$PHI4_CLASIFICADOR disponible en Ollama CPU"
     else
         warn "$PHI4_CLASIFICADOR no visible en instancia CPU (modelos compartidos del mismo directorio)"
-        info "En el primer uso se cargará automáticamente desde $OLLAMA_MODELS_DIR"
+        info "En el primer uso se cargará automáticamente desde $OLLAMA_CPU_MODELS_DIR"
     fi
 fi
 
