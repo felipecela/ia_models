@@ -429,4 +429,15 @@ Con eso podré decirte si el problema es:
 El hecho de que la VRAM figure en 674 MiB de 7.5 GB libres con Ollama y TabbAPI activos ya me dice que TabbAPI está consumiendo alrededor de 5-6 GB de VRAM, que es coherente con `llama-3.1-8b-exl2`. El problema de RAM del sistema podría ser independiente de eso o consecuencia acumulada de los reinicios fallidos de SGLang, que cargaba pesos en RAM de sistema antes de fallar. Necesito los números reales antes de proponer cualquier corrección.
 
 
+---
+
+
+Para poder generar el V28 sin regresiones en TabbAPI necesito saber cómo era exactamente el docker run de TabbyAPI en la versión que te funcionaba. ¿Puedes pasarme el output de:
+
+```bash
+docker inspect exllamav2-api --format '{{json .Config.Cmd}}' 2>/dev/null || \
+docker run --rm ghcr.io/theroyallab/tabbyapi:latest --help 2>&1 | head -20
+```
+
+
 
