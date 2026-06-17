@@ -1,0 +1,14 @@
+Protocolo de Acceso (El definitivo)
+Ejecuta el script bash Autoboot_Cluster_V9.sh.
+
+Como buena práctica, abre http://localhost:8080 en una pestaña de incógnito o nueva.
+
+Notarás que la molesta ventanita superior de "Usuario/Contraseña" de Nginx ya no aparece.
+
+Cuando veas la página de Panel de Gateway, rellena estos datos para establecer el puente definitivo:
+
+URL de WebSocket: ws://localhost:18789
+
+Token de la puerta de enlace: 7c9b84a2f1e63d5c8a4b29f7e0d1c4a5b6e7f8d9c0a1b2c3d4e5f6a7b8c9d0e1
+
+Pulsa "Conectar". Esta vez las dos piezas encajarán a la primera, no habrá ventanas emergentes adicionales y tendrás tu sistema Ready to chat. ¡Pruébalo y me cuentas!
