@@ -458,4 +458,35 @@ bash
 docker exec openclaw-server sh -lc 'cat /data/.openclaw/openclaw.json'
 
 
+---
+
+
+Necesito ver el Router V14 para aplicarlos correctamente. Ejecuta este comando y pégame la salida:
+
+bash
+# Ver qué parámetros usa el Router al llamar a Ollama
+grep -n "think\|context\|num_ctx\|options\|max_tokens\|tools" \
+  ~/ai_cluster/orchestrator_router_V14.py | head -60
+Y también:
+
+bash
+# Ver el endpoint /v1/chat/completions del Router
+grep -n "def.*chat\|completions\|forward\|backend\|proxy" \
+  ~/ai_cluster/orchestrator_router_V14.py | head -40
+  
+  
+Cómo obtener el log del router en tiempo real
+Para la próxima vez que quieras pasarme más información:
+
+bash
+# Log en tiempo real del router (incluye todos los 400 con detalle):
+tail -f ~/ai_cluster/logs/router_v14.log
+
+# Ver los últimos errores específicos de los modelos:
+grep -i "400\|error\|think\|tools\|rejected" ~/ai_cluster/logs/router_v14.log | tail -30
+
+# Log del contenedor OpenClaw con los runId y errores de agente:
+docker logs openclaw-server --since 10m 2>&1 | grep -E "error|400|rejected|runId"
+
+
 
