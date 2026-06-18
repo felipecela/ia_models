@@ -489,4 +489,10 @@ grep -i "400\|error\|think\|tools\|rejected" ~/ai_cluster/logs/router_v14.log | 
 docker logs openclaw-server --since 10m 2>&1 | grep -E "error|400|rejected|runId"
 
 
+Para confirmar en tiempo real que el fix está funcionando, puedes observar los logs mientras escribes:
+
+bash
+tail -f ~/ai_cluster/logs/router_v14.log
+
+
 
