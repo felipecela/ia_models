@@ -447,3 +447,15 @@ docker ps -f name=exllamav2-api
 docker logs exllamav2-api --tail 50
 
 
+---
+
+
+qué subcomandos reales soporta la CLI de tu build y qué config final queda tras el arranque:
+
+bash
+docker exec openclaw-server sh -lc 'openclaw --help | sed -n "1,120p"'
+bash
+docker exec openclaw-server sh -lc 'cat /data/.openclaw/openclaw.json'
+
+
+
