@@ -17,6 +17,21 @@ Pulsa "Conectar". Esta vez las dos piezas encajarán a la primera, no habrá ven
 ---
 
 
+| Imagen | Uso en clúster | Peso | Decisión |
+|---|---|---|---|
+| `ollama/ollama:latest` | ✅ Ollama GPU + CPU (etapas 1/2) | 8.27 GB | **Conservar** |
+| `coollabsio/openclaw:latest` | ✅ OpenClaw Server (etapa 8/8) | 7.78 GB | **Conservar** |
+| `ghcr.io/chroma-core/chroma:0.6.3` | ✅ ChromaDB (etapa 5/8) | 673 MB | **Conservar** |
+| `linuxserver/obsidian:latest` | ✅ Obsidian (etapa 6/8) | 5.18 GB | **Conservar** |
+| `searxng/searxng:latest` | ✅ SearXNG (etapa 7/8) | 377 MB | **Conservar** |
+| `busybox:latest` | ✅ Usado en V42 para init + cp | 6.81 MB | **Conservar** |
+| `ghcr.io/theroyallab/tabbyapi:latest` | ⚠️ Modo `--exl2` (opcional) | 21.2 GB | **Conservar si usas --exl2** |
+| `lmsysorg/sglang:latest` | ⚠️ Modo `--sglang` (opcional) | 41.6 GB | **Conservar si usas --sglang** |
+
+
+---
+
+
 ## SGLang en CPU/RAM: técnicamente posible, pero no con la imagen actual
 
 SGLang **sí tiene modo CPU** mediante el paquete `sglang-cpu` con la variable de entorno `SGLANG_USE_CPU_ENGINE=1`, pero **requiere una imagen Docker completamente diferente** a `lmsysorg/sglang:latest` (que es exclusivamente CUDA). Además, la documentación oficial indica que el soporte CPU real está optimizado para Intel Xeon 4ª gen+ con extensiones AMX, y en AMD/Intel genérico el rendimiento es tan bajo que inferencia en tokens/s es prácticamente inutilizable para un flujo de trabajo real. [leeroopedia](https://leeroopedia.com/index.php/Environment:Sgl_project_Sglang_CPU)
