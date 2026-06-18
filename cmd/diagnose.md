@@ -495,4 +495,15 @@ bash
 tail -f ~/ai_cluster/logs/router_v14.log
 
 
+# Verificar build
+curl -s http://localhost:8000/ | python3 -m json.tool | grep -E "build|version"
+# Esperado: "build": "V24", "version": "14.24.0"
+
+# Test con tools de agente (la prueba real)
+curl -s http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"masivo","stream":true,"messages":[{"role":"user","content":"test"}],"tools":[{"function":{"name":"test_fn","description":"test"}}],"stream_options":{"include_usage":true}}'
+# No debe aparecer ningún HTTP 400 en logs
+
+
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║ orchestrator_router_V14.py — OMEN AI Router V14 (build V23)               ║
+║ orchestrator_router_V14.py — OMEN AI Router V14 (build V24)               ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║ Router inteligente multi-nivel para orquestación de modelos locales.       ║
 ║                                                                             ║
@@ -56,6 +56,12 @@
 ║               max_completion_tokens y otros campos OpenAI que Ollama        ║
 ║               rechaza con HTTP 400. Origen: OpenClaw v2026.6.8+ los        ║
 ║               inyecta en todas las peticiones de agente.                   ║
+║                                                                             ║
+║ CORRECCIONES V24:                                                           ║
+║   ✔ [V24-P1]  _proxy_streaming: una sola conexión HTTP — se elimina la    ║
+║               doble generación que duplicaba el tiempo de GPU en streaming. ║
+║   ✔ [V24-D1]  log.debug [DBG] restaurado en sanitize_for_ollama().        ║
+║   ✔ [V24-VS]  Version strings actualizadas a 14.24.0 en todos los sitios. ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║ Requisitos: pip3 install fastapi uvicorn httpx numpy                        ║
 ║ Ejecución:  python3 orchestrator_router_V14.py                             ║
@@ -258,7 +264,7 @@ async def lifespan(app: FastAPI):
     global _phi4_cpu_available, _shared_http_client
 
     log.info("═" * 66)
-    log.info(" OMEN AI Router V14 (build V23) — iniciando…")
+    log.info(" OMEN AI Router V14 (build V24) — iniciando…")
     log.info("═" * 66)
 
     # [V21-P3] Crear cliente HTTP compartido
@@ -342,7 +348,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="OMEN AI Router V14",
-    version="14.23.0",
+    version="14.24.0",
     lifespan=lifespan,
 )
 
@@ -355,8 +361,8 @@ app = FastAPI(
 async def raiz():
     return {
         "servicio": "OMEN AI Router V14",
-        "build": "V23",
-        "version": "14.23.0",
+        "build": "V24",
+        "version": "14.24.0",
         "niveles": list(RUTAS.keys()),
         "agent": True,
     }
@@ -400,7 +406,7 @@ async def health(request: Request):
 
     result = {
         "status": "ok",
-        "version": "14.23.0",
+        "version": "14.24.0",
         "ruta_activa": get_estado()["ruta_activa"],
         "tabbyapi_model": get_estado()["tabbyapi_modelo"],
         "backends": backends,
@@ -594,11 +600,11 @@ async def chat(request: Request):
     body["model"] = RUTAS[nivel]["modelo"]
 
     # ── Ajustes del body ────────────────────────────────────────────────────
-    # [V23-S1] sanitize PRIMERO — body limpio antes de cualquier transformación
-    body = sanitize_for_ollama(body, nivel, body["model"])     # [V23-S1] PRIMERO
-    body = inject_opciones_extra(body, nivel, body["model"])   # [V23-O1] num_ctx, temperature…
-    body = inject_thinking(body, nivel, body["model"])         # [V23-T1] think=True si aplica
-    body = check_tools(body, nivel, body["model"])             # [V23-C1] tools → texto plano si sin soporte
+    # [V24] sanitize PRIMERO — body limpio antes de cualquier transformación
+    body = sanitize_for_ollama(body, nivel, body["model"])     # [V24] PRIMERO
+    body = inject_opciones_extra(body, nivel, body["model"])   # [V24] num_ctx, temperature…
+    body = inject_thinking(body, nivel, body["model"])         # [V24] think=True si aplica
+    body = check_tools(body, nivel, body["model"])             # [V24] tools → texto plano si sin soporte
 
     log.info(f"[PROXY] {nivel} → '{body['model']}' @ {target_url}")
 

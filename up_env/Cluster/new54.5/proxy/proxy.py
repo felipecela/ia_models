@@ -2,7 +2,7 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║ omen_router_modules/proxy.py — Proxy HTTP y gestión de VRAM               ║
-║ OMEN AI Router V14 (build V23)                                              ║
+║ OMEN AI Router V14 (build V24)                                              ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║ [V21-P1] Estado transitorio "SWITCHING" durante conmutación VRAM (H-01).  ║
 ║ [V21-P2] Error HTTP real en streaming pre-chunk (H-09).                   ║
@@ -10,27 +10,30 @@
 ║ [V21-P4] Thinking por modelo, no solo por nivel (H-12).                   ║
 ║                                                                             ║
 ║ CORRECCIONES V22:                                                           ║
-║ [V22-T1] inject_thinking: activado también para phi4-reasoning:*,         ║
-║           y "think" ya estaba correcto en options{} — se amplían modelos. ║
-║ [V22-T2] check_tools: en lugar de solo eliminar tools, los convierte       ║
-║           a texto plano en el system prompt para modelos sin soporte.       ║
-║           Antes se eliminaban sin más → el agente perdía sus herramientas. ║
-║ [V22-C1] inject_opciones_extra: añade num_ctx=16384 para niveles GPU.     ║
-║           Sin esto Ollama usa 4096 por defecto → 400 con prompts largos.  ║
-║ [V22-C2] check_tools: corrige bug — la función devolvía None (no dict).   ║
+║ [V22-T1] inject_thinking: activado también para phi4-reasoning:*.          ║
+║ [V22-T2] check_tools: convierte tools a texto plano para sin soporte.      ║
+║ [V22-C1] inject_opciones_extra: num_ctx=16384 para niveles GPU.            ║
+║ [V22-C2] check_tools: corregido bug — devolvía None (ahora dict).          ║
 ║                                                                             ║
 ║ CORRECCIONES V23:                                                           ║
-║ [V23-S1] sanitize_for_ollama(): elimina campos OpenAI que Ollama rechaza  ║
-║           con HTTP 400: stream_options, max_completion_tokens,             ║
-║           logprobs, top_logprobs, service_tier, store.                     ║
-║           Origen: OpenClaw v2026.6.8+ envía estos campos en TODAS las      ║
-║           peticiones de agente. El router los eliminaba solo en check_tools ║
-║           pero no en rutas directas → 400 persistentes.                    ║
-║ [V23-S2] sanitize_for_ollama() se llama ANTES de check_tools y             ║
-║           inject_thinking para garantizar un body limpio en toda la        ║
-║           cadena de transformaciones.                                       ║
-║ [V23-S3] Conversión max_completion_tokens → options.num_predict antes      ║
-║           de eliminar el campo, para no perder el límite de tokens.        ║
+║ [V23-S1] sanitize_for_ollama(): elimina campos OpenAI incompatibles        ║
+║           (stream_options, max_completion_tokens, logprobs, etc.).         ║
+║ [V23-S2] sanitize_for_ollama() se llama PRIMERO en la cadena.              ║
+║ [V23-S3] max_completion_tokens → options.num_predict antes de eliminar.   ║
+║                                                                             ║
+║ CORRECCIONES V24:                                                           ║
+║ [V24-P1] _proxy_streaming: eliminada doble llamada HTTP. Antes se hacía    ║
+║           un http_client.post() completo solo para leer el status_code,    ║
+║           lo que obligaba a Ollama a generar la respuesta ENTERA dos veces ║
+║           para cada request en streaming (crítico en MASIVO/qwen2.5:32b). ║
+║           Ahora se usa http_client.stream() una sola vez: el status HTTP   ║
+║           llega con las cabeceras, antes de consumir el body, por lo que   ║
+║           se puede detectar el error 400/5xx sin coste de generación.      ║
+║ [V24-D1] Log de campos del body restaurado como log.debug() (nivel DEBUG,  ║
+║           silencioso en producción pero visible con --log-level debug).    ║
+║           En V22 se eliminó por completo; en V24 se recupera como debug    ║
+║           para facilitar futuros diagnósticos de campos inesperados        ║
+║           enviados por OpenClaw u otros clientes OpenAI-compatibles.       ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
@@ -100,6 +103,7 @@ def sanitize_for_ollama(body: dict, nivel: str, model: str) -> dict:
     Actúa sobre TODAS las peticiones independientemente del nivel o modelo.
     [V23-S3] Convierte max_completion_tokens → options.num_predict para
     preservar el límite de tokens antes de eliminar el campo fuente.
+    [V24-D1] Loguea los campos eliminados a nivel DEBUG para diagnóstico.
     """
     removed = []
 
@@ -122,6 +126,13 @@ def sanitize_for_ollama(body: dict, nivel: str, model: str) -> dict:
 
     if removed:
         log.debug(f"[V23-S1] sanitize_for_ollama [{nivel}/{model}] eliminados: {removed}")
+
+    # [V24-D1] Log DEBUG de todos los campos presentes en el body (diagnóstico)
+    campos = list(body.keys())
+    non_msg = {k: v for k, v in body.items() if k != "messages"}
+    log.debug(
+        f"[V24-D1] body_campos={campos} | non_msg={json.dumps(non_msg, ensure_ascii=False, default=str)[:400]}"
+    )
 
     return body
 
@@ -238,7 +249,6 @@ def inject_opciones_extra(body: dict, nivel: str, modelo: str = "") -> dict:
             opts = {}
         if opts.get("num_ctx", 0) < _MIN_CTX_GPU:
             opts["num_ctx"] = _MIN_CTX_GPU
-        # Sincronizar num_predict con max_tokens si viene del body OpenAI
         if "max_tokens" in body and "num_predict" not in opts:
             opts["num_predict"] = body["max_tokens"]
         body["options"] = opts
@@ -330,7 +340,8 @@ def check_tools(body: dict, nivel: str, modelo: str) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PROXY HTTP — [V21-P2] Con manejo mejorado de errores en streaming
+# PROXY HTTP
+# [V24-P1] _proxy_streaming: una sola conexión HTTP (elimina doble generación)
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def proxy_request(
@@ -360,21 +371,57 @@ async def _proxy_streaming(
     modelo_usado: str,
     http_client: httpx.AsyncClient,
 ) -> "StreamingResponse | JSONResponse":
-    """Proxy en modo streaming con fallback."""
+    """[V24-P1] Proxy streaming con UNA SOLA conexión HTTP.
+    El status code llega con las cabeceras HTTP, antes de consumir el body,
+    por lo que se puede detectar error 400/5xx sin coste de generación.
+    Elimina la doble llamada del V21/V22/V23 que obligaba a Ollama a generar
+    la respuesta completa dos veces (crítico en MASIVO con qwen2.5:32b).
+    """
     try:
-        resp_check = await http_client.post(
+        async with http_client.stream(
+            "POST",
             target_url,
-            json={**body, "stream": True},
+            json=body,
             timeout=httpx.Timeout(timeout_s, connect=10.0),
-        )
-        if resp_check.status_code >= 400:
-            error_text = resp_check.text[:500]
-            log.warning(f"[PROXY] Backend retornó {resp_check.status_code} en {nivel}")
-            return JSONResponse(
-                content={"error": {"message": "Backend error", "type": "backend_error", "details": error_text}},
-                status_code=resp_check.status_code,
-                headers={"X-Omen-Model-Used": modelo_usado, "X-Omen-Nivel": nivel},
-            )
+        ) as resp:
+            # El status HTTP llega con las cabeceras — sin coste de generación
+            if resp.status_code >= 400:
+                error_text = (await resp.aread())[:500].decode("utf-8", errors="replace")
+                log.warning(f"[PROXY] Backend retornó {resp.status_code} en {nivel}: {error_text[:120]}")
+                return JSONResponse(
+                    content={"error": {"message": "Backend error", "type": "backend_error", "details": error_text}},
+                    status_code=resp.status_code,
+                    headers={"X-Omen-Model-Used": modelo_usado, "X-Omen-Nivel": nivel},
+                )
+
+            # Stream directo al cliente — sin buffer intermedio
+            headers = {"X-Omen-Model-Used": modelo_usado, "X-Omen-Nivel": nivel}
+
+            async def _gen():
+                try:
+                    async for chunk in resp.aiter_bytes():
+                        yield chunk
+                except asyncio.CancelledError:
+                    log.debug(f"[PROXY] Stream cancelado por el cliente ({nivel})")
+                except httpx.TimeoutException:
+                    log.warning(f"[PROXY] Timeout ({timeout_s}s) en streaming {nivel}")
+                    err = json.dumps({"error": {"message": f"Timeout en {nivel}", "type": "timeout"}})
+                    yield f"data: {err}
+
+data: [DONE]
+
+".encode()
+                except Exception as e:
+                    log.error(f"[PROXY] Error en streaming {nivel}: {e}")
+                    err = json.dumps({"error": {"message": str(e), "type": "proxy_error"}})
+                    yield f"data: {err}
+
+data: [DONE]
+
+".encode()
+
+            return StreamingResponse(_gen(), media_type="text/event-stream", headers=headers)
+
     except httpx.TimeoutException:
         return await _handle_timeout_fallback(body, request, nivel, modelo_usado, http_client)
     except Exception as e:
@@ -384,42 +431,6 @@ async def _proxy_streaming(
             status_code=502,
             headers={"X-Omen-Model-Used": modelo_usado, "X-Omen-Nivel": nivel},
         )
-
-    async def _gen():
-        try:
-            async with http_client.stream("POST", target_url, json=body, timeout=httpx.Timeout(timeout_s)) as resp:
-                if resp.status_code >= 400:
-                    error_body = await resp.aread()
-                    err = json.dumps({"error": {"message": f"Backend error {resp.status_code}", "type": "backend_error"}})
-                    yield f"data: {err}
-
-data: [DONE]
-
-".encode()
-                    return
-                async for chunk in resp.aiter_bytes():
-                    yield chunk
-        except asyncio.CancelledError:
-            log.debug(f"[PROXY] Stream cancelado por el cliente ({nivel})")
-        except httpx.TimeoutException:
-            log.warning(f"[PROXY] Timeout ({timeout_s}s) en streaming {nivel}")
-            err = json.dumps({"error": {"message": f"Timeout en {nivel}", "type": "timeout"}})
-            yield f"data: {err}
-
-data: [DONE]
-
-".encode()
-        except Exception as e:
-            log.error(f"[PROXY] Error en streaming {nivel}: {e}")
-            err = json.dumps({"error": {"message": str(e), "type": "proxy_error"}})
-            yield f"data: {err}
-
-data: [DONE]
-
-".encode()
-
-    headers = {"X-Omen-Model-Used": modelo_usado, "X-Omen-Nivel": nivel}
-    return StreamingResponse(_gen(), media_type="text/event-stream", headers=headers)
 
 
 async def _proxy_json(
