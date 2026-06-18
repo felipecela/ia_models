@@ -85,3 +85,44 @@ ai_cluster() {
 }
 
 
+---
+
+
+# ─── Docker — Gestión de contenedores ────────────────────────────────────────
+alias dstop='docker stop $(docker ps -q)'                          # Para todos los running
+alias dkill='docker rm -f $(docker ps -aq)'                        # Elimina todos (running + parados)
+alias dclean='docker container prune -f'                           # Elimina solo los parados
+
+# ─── Docker — Redes ──────────────────────────────────────────────────────────
+alias dnetrm='docker network prune -f'                             # Elimina redes no usadas por ningún contenedor
+alias dnetls='docker network ls'                                   # Listar todas las redes
+
+# ─── Docker — Volúmenes ──────────────────────────────────────────────────────
+# AVISO: solo elimina volúmenes anónimos NO asociados a ningún contenedor
+alias dvolrm='docker volume prune -f'                              # Elimina volúmenes huérfanos (anónimos)
+alias dvolrm-all='docker volume prune -a -f'                       # Elimina TODOS los no usados (incluye nombrados sin contenedor)
+alias dvolls='docker volume ls'                                    # Listar todos los volúmenes
+
+# ─── Docker — Build cache ────────────────────────────────────────────────────
+alias dcacherm='docker builder prune -f'                           # Elimina build cache dangling
+alias dcacherma='docker builder prune -a -f'                       # Elimina TODO el build cache
+
+# ─── Docker — Purga estándar SIN imágenes ────────────────────────────────────
+# Equivale a: contenedores parados + redes huérfanas + build cache dangling
+# NO toca: imágenes, volúmenes, contenedores running
+alias dprune='docker container prune -f && docker network prune -f && docker builder prune -f'
+
+# ─── Docker — Purga agresiva segura ──────────────────────────────────────────
+# Añade volúmenes ANÓNIMOS y TODA la caché de compilación (dcacherma).
+# Los volúmenes NOMBRADOS (chromadb_data, etc.) ESTÁN PROTEGIDOS.
+alias dpruneall='docker container prune -f && docker network prune -f && docker volume prune -f && docker builder prune -a -f'
+
+# ─── Docker — Purga PROFUNDA ─────────────────────────────────────────────────
+# Incluye dvolrm-all: Eliminará contenedores parados, redes, TODA la caché
+alias dpruneall-deep='docker network prune -f && docker volume prune -a -f && docker builder prune -a -f'
+# ─── Docker — Diagnóstico de espacio ─────────────────────────────────────────
+alias ddf='docker system df -v'                                    # Qué ocupa qué
+alias dips='docker inspect -f "{{.Name}} {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}" $(docker ps -q)'  # IPs de containers running
+
+
+
