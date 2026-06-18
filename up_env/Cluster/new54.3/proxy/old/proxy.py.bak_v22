@@ -1,7 +1,7 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║  omen_router_modules/proxy.py — Proxy HTTP y gestión de VRAM               ║
-║  OMEN AI Router V14 (build V23)                                             ║
+║  OMEN AI Router V14 (build V22)                                             ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║  [V21-P1] Estado transitorio "SWITCHING" durante conmutación VRAM (H-01).  ║
 ║  [V21-P2] Error HTTP real en streaming pre-chunk (H-09).                   ║
@@ -17,11 +17,6 @@
 ║  [V22-C1] inject_opciones_extra: añade num_ctx=16384 para niveles GPU.     ║
 ║            Sin esto Ollama usa 4096 por defecto → 400 con prompts largos.  ║
 ║  [V22-C2] check_tools: corrige bug — la función devolvía None (no dict).   ║
-║                                                                              ║
-║  CORRECCIONES V23:                                                           ║
-║  [V23-S1] sanitize_for_ollama(): elimina campos OpenAI que Ollama rechaza   ║
-║           con HTTP 400: stream_options, max_completion_tokens.              ║
-║           Activos en TODAS las peticiones de agente de OpenClaw v2026.6.8+  ║
 ║            El router llama a check_tools() pero no usaba su retorno.        ║
 ║            Ahora retorna body modificado (el router ya lo asigna en V14).  ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -307,39 +302,6 @@ def check_tools(body: dict, nivel: str, modelo: str) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 # PROXY HTTP — [V21-P2] Con manejo mejorado de errores en streaming
 # ─────────────────────────────────────────────────────────────────────────────
-# [V23-S1] Campos OpenAI incompatibles con Ollama /api/chat
-_OLLAMA_UNSUPPORTED = {
-    "stream_options",       # include_usage — solo OpenAI
-    "max_completion_tokens", # OpenAI alias de max_tokens; Ollama usa options.num_predict
-    "logprobs",
-    "top_logprobs",
-    "service_tier",
-    "store",
-}
-
-def sanitize_for_ollama(body: dict, nivel: str, model: str) -> dict:
-    """[V23-S1] Elimina campos OpenAI que Ollama /api/chat no acepta.
-    Actúa sobre TODOS los niveles; no depende de capacidades del modelo.
-    Convierte además max_completion_tokens → options.num_predict.
-    """
-    removed = []
-    # max_completion_tokens → options.num_predict (si no viene ya max_tokens)
-    if "max_completion_tokens" in body:
-        mct = body.pop("max_completion_tokens")
-        removed.append("max_completion_tokens")
-        if "max_tokens" not in body:
-            opts = body.setdefault("options", {})
-            opts["num_predict"] = mct
-    # Eliminar resto de campos incompatibles
-    for campo in (_OLLAMA_UNSUPPORTED - {"max_completion_tokens"}):
-        if campo in body:
-            body.pop(campo)
-            removed.append(campo)
-    if removed:
-        log.debug(f"[V23-S1] sanitize_for_ollama [{nivel}] eliminados: {removed}")
-    return body
-
-
 async def proxy_request(
     body: dict,
     target_url: str,

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║ orchestrator_router_V14.py — OMEN AI Router V14 (build V22)                 ║
+║ orchestrator_router_V14.py — OMEN AI Router V14 (build V21)                 ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║ Router inteligente multi-nivel para orquestación de modelos locales.        ║
 ║                                                                              ║
@@ -120,7 +120,6 @@ from omen_router_modules.proxy import (
     inject_opciones_extra,
     inject_thinking,
     check_tools,
-    sanitize_for_ollama,   # [V22-O1]
     proxy_request,
 )
 from omen_router_modules.rag import (
@@ -506,6 +505,8 @@ async def chat(request: Request):
     # Validación de entrada
     try:
         body = await request.json()
+        import json as _j
+        log.warning("[DBG] CAMPOS=" + str(list(body.keys())) + " | NON-MSG=" + _j.dumps({k:v for k,v in body.items() if k!="messages"})[:800])
     except Exception:
         return JSONResponse(
             content={"error": {"message": "Body JSON inválido", "type": "validation_error"}},
@@ -587,8 +588,7 @@ async def chat(request: Request):
     # ── Ajustes del body ────────────────────────────────────────────────────
     body = inject_opciones_extra(body, nivel, body["model"])  # [V23-O1]
     body = inject_thinking(body, nivel, body["model"])
-    body = check_tools(body, nivel, body["model"])       # [V23-C1]
-    body = sanitize_for_ollama(body, nivel, body["model"])  # [V22-O2]
+    body = check_tools(body, nivel, body["model"])  # [V23-C1]
 
     log.info(f"[PROXY] {nivel} → '{body['model']}' @ {target_url}")
 
