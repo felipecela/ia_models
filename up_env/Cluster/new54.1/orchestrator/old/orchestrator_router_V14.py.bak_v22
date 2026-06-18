@@ -584,9 +584,9 @@ async def chat(request: Request):
     body["model"] = RUTAS[nivel]["modelo"]
 
     # ── Ajustes del body ────────────────────────────────────────────────────
-    body = inject_opciones_extra(body, nivel, body["model"])  # [V23-O1]
+    body = inject_opciones_extra(body, nivel)
     body = inject_thinking(body, nivel, body["model"])
-    body = check_tools(body, nivel, body["model"])  # [V23-C1]
+    check_tools(body, nivel, body["model"])
 
     log.info(f"[PROXY] {nivel} → '{body['model']}' @ {target_url}")
 
