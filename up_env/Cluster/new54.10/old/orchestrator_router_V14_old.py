@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║ orchestrator_router_V14.py — OMEN AI Router V14 (build V27)                ║
+║ orchestrator_router_V14.py — OMEN AI Router V14 (build V26)                ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║ Router inteligente multi-nivel para orquestación de modelos locales.        ║
 ║                                                                              ║
@@ -203,15 +203,15 @@ def _check_admin_auth(request: Request) -> bool:
     if auth.startswith("Bearer "):
         valid = auth[7:] == _ADMIN_API_KEY
         if not valid:
-            log.warning(f"[AUTH] Bearer token invalido desde {str(request.client or 'unknown')}")
+            log.warning(f"[AUTH] Bearer token inválido desde {str(request.client or 'unknown')}")
         return valid
     key_param = request.query_params.get("key", "")
     if key_param:
         valid = key_param == _ADMIN_API_KEY
         if not valid:
-            log.warning(f"[AUTH] Query key invalido desde {str(request.client or 'unknown')}")
+            log.warning(f"[AUTH] Query key inválido desde {str(request.client or 'unknown')}")
         return valid
-    log.debug(f"[AUTH] No se proporcionaron credentials desde {str(request.client or 'unknown')}")
+    log.debug(f"[AUTH] Sin credentials desde {str(request.client or 'unknown')}")
     return False
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -254,7 +254,7 @@ async def lifespan(app: FastAPI):
     global _phi4_cpu_available, _shared_http_client
 
     log.info("═" * 66)
-    log.info(" OMEN AI Router V14 (build V27) — iniciando…")
+    log.info(" OMEN AI Router V14 (build V26) — iniciando…")
     log.info("═" * 66)
 
     # [V26-TIMEOUT] Sin timeout global — cada operación especifica el suyo
@@ -303,7 +303,7 @@ async def lifespan(app: FastAPI):
     log.info(f" Rate limit: {RATE_LIMIT_MAX} req/{RATE_LIMIT_WINDOW}s")
     log.info(f" Admin auth: {'✔ configurada' if _ADMIN_API_KEY else '⚠ sin protección'}")
     log.info(f" Log: {LOG_FILE} (RotatingFileHandler {LOG_MAX_BYTES // (1024*1024)}MB×{LOG_BACKUP_COUNT})")
-    log.info(f" Versión: 14.27.0 (V27 fixes: phi4-mini alias, num_predict, streaming fallback, JSON guard, sanitize order)")
+    log.info(f" Versión: 14.26.0 (V26 fixes: token truncation, tool_result handling, debug logs)")
     log.info("═" * 66)
 
     yield  # App running
@@ -330,7 +330,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="OMEN AI Router V14",
-    version="14.27.0",
+    version="14.26.0",
     lifespan=lifespan,
 )
 
@@ -342,8 +342,8 @@ app = FastAPI(
 async def raiz():
     return {
         "servicio": "OMEN AI Router V14",
-        "build": "V27",
-        "version": "14.27.0",
+        "build": "V26",
+        "version": "14.26.0",
         "niveles": list(RUTAS.keys()),
         "agent": True,
         "fixes": ["[V26] Token truncation fixed", "[V26] Tool result handling improved", "[V26] Debug logging for OpenClaw"]
@@ -394,7 +394,7 @@ async def health(request: Request):
 
     result = {
         "status":         "ok",
-        "version":        "14.27.0",
+        "version":        "14.26.0",
         "build":          "V26",
         "ruta_activa":    get_estado()["ruta_activa"],
         "tabbyapi_model": get_estado()["tabbyapi_modelo"],
@@ -464,14 +464,14 @@ async def modelos():
     ts = int(time.time())
     catalog = [
         {"id": "ruteador-auto",    "name": "Auto — clasificador 4 capas",            "ctx": 32768, "max": 16384},
-        {"id": "chat",             "name": "Chat (Llama 3.1 8B EXL2)",               "ctx": 8192,  "max": 4096},
-        {"id": "instantaneo",      "name": "Instantáneo (Qwen2.5 Coder 7B)",         "ctx": 4096,  "max": 2048},
-        {"id": "agil",             "name": "Ágil (SGLang · agentes, documentos)",    "ctx": 32768, "max": 8192},
+        {"id": "chat",             "name": "Chat rápido (phi4-mini)",               "ctx": 8192,  "max": 4096},
+        {"id": "instantaneo",      "name": "Instantáneo (phi4-mini · respuesta ultra-rápida)",         "ctx": 4096,  "max": 2048},
+        {"id": "agil",             "name": "Ágil (phi4 · análisis, documentos, agentes)",    "ctx": 32768, "max": 8192},
         {"id": "profundo",         "name": "Profundo (DeepSeek R1 14B)",             "ctx": 16384, "max": 8192},
         {"id": "phi-mayor-precision", "name": "Phi Mayor Precisión (phi4-reasoning:plus)", "ctx": 16384, "max": 4096},
         {"id": "phi-optimizada",   "name": "Phi Optimizada (phi4-reasoning:14b-q4_K_M)", "ctx": 16384, "max": 4096},
         {"id": "masivo",           "name": "Masivo (Qwen2.5 32B · análisis extenso)","ctx": 32768, "max": 16384},
-        {"id": "codigo",           "name": "Código → Inst. (Qwen Coder 7B)",         "ctx": 4096,  "max": 2048},
+        {"id": "codigo",           "name": "Código (deepseek-coder-v2 · programación)",         "ctx": 4096,  "max": 2048},
         {"id": "phi4",             "name": "Phi-4 CPU (clasificador directo)",       "ctx": 16384, "max": 4096},
         {"id": "agent-autonomo",   "name": "Agente Autónomo (planifica+ejecuta+valida)", "ctx": 32768, "max": 16384},
         {"id": "deepseek-r1:14b"},

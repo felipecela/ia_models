@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-proxy.py - OMEN AI Router V14 (build V27)
+proxy.py - OMEN AI Router V14 (build V26)
 Proxy HTTP y gestion de VRAM.
 
 Cambios:
@@ -18,6 +18,9 @@ V25-C1: sanitize_for_ollama normaliza messages[].content array -> string.
          Ollama /api/chat requiere content como string plano. OpenClaw con
          agente/tools activos envia content como lista de dicts multimodal
          -> Ollama responde HTTP 400 (cannot unmarshal array into string).
+V27: [V27-C1] max_tokens en raíz → options.num_predict (igual que max_completion_tokens).
+      [V27-C2] Clave _MODEL_MAX_CTX normalizada a lowercase.
+      [V27-B1/B2] connect=10.0 en _proxy_json y _handle_timeout_fallback_json.
 V25-FIX: Dos correcciones críticas:
   [V25-FIX-STREAM] Generadores _gen() y _gen_fb() mantienen context manager
          abierto durante ejecución. Antes el stream se cerraba prematuramente
@@ -76,7 +79,7 @@ _MIN_CTX_GPU = 16384
 _MODEL_MAX_CTX = {
     "deepseek-r1:14b": 16384,
     "phi4-reasoning:plus": 16384,
-    "phi4-reasoning:14b-q4_k_m": 16384,
+    "phi4-reasoning:14b-q4_k_m": 16384,  # normalizado lowercase [V27-C2]
     "qwen2.5:32b": 32768,
     "qwen2.5:7b": 32768,
     "qwen2.5-coder:7b": 32768,
@@ -360,23 +363,10 @@ async def conmutar_vram(nivel: str, http_client: httpx.AsyncClient) -> str:
 # ---------------------------------------------------------------------------
 
 def inject_opciones_extra(body: dict, nivel: str, modelo: str = "") -> dict:
-    """[V22-C1] Inyecta opciones del nivel y garantiza num_ctx >= 16384 en GPU.
-    [V27-C2] FIX: opciones_extra puede incluir sub-dict 'options' con num_predict.
-             Se mergea en body["options"] correctamente.
-             Ollama ignora "max_tokens" en root -> solo atiende options.num_predict.
-    """
+    """[V22-C1] Inyecta opciones del nivel y garantiza num_ctx >= 16384 en GPU."""
     extras = RUTAS[nivel].get("opciones_extra") or {}
     for k, v in extras.items():
-        if k == "options" and isinstance(v, dict):
-            # [V27-C2] Mergear sub-dict options en body["options"]
-            opts = body.get("options", {})
-            if not isinstance(opts, dict):
-                opts = {}
-            for ok, ov in v.items():
-                opts.setdefault(ok, ov)
-            body["options"] = opts
-        else:
-            body.setdefault(k, v)
+        body.setdefault(k, v)
 
     if nivel in _GPU_NIVELES:
         opts = body.get("options", {})
@@ -384,8 +374,15 @@ def inject_opciones_extra(body: dict, nivel: str, modelo: str = "") -> dict:
             opts = {}
         if opts.get("num_ctx", 0) < _MIN_CTX_GPU:
             opts["num_ctx"] = _MIN_CTX_GPU
-        if "max_tokens" in body and "num_predict" not in opts:
-            opts["num_predict"] = body["max_tokens"]
+        # [V27-C1] max_tokens raíz → options.num_predict + eliminar del raíz
+        if "max_tokens" in body:
+            mt_val = body.pop("max_tokens")
+            removed.append("max_tokens")
+            opts = body.get("options", {})
+            if not isinstance(opts, dict):
+                opts = {}
+            opts.setdefault("num_predict", mt_val)
+            body["options"] = opts
         body["options"] = opts
 
     return body
@@ -474,13 +471,9 @@ async def proxy_request(
     http_client: httpx.AsyncClient,
 ):
     """Proxy HTTP hacia el backend con fallback automatico.
-    [V25-FIX-TOKENS] Valida tokens antes de enviar.
-    [V27-ORDER] FIX: sanitize_for_ollama ANTES de validate_and_truncate.
-    """
-    timeout_s    = RUTAS.get(nivel, {}).get("timeout_s", 60.0)
+    [V25-FIX-TOKENS] Valida tokens antes de enviar."""
+    timeout_s = RUTAS.get(nivel, {}).get("timeout_s", 60.0)
     modelo_usado = body.get("model", "unknown")
-    # [V27-ORDER] sanitize PRIMERO (arrays->string), LUEGO truncar tokens
-    body = sanitize_for_ollama(body, nivel, modelo_usado)
     
     # [V25-FIX-TOKENS] Validar y truncar si es necesario
     body = validate_and_truncate_messages(body, nivel, modelo_usado)
@@ -542,47 +535,7 @@ async def _proxy_streaming(
         except asyncio.CancelledError:
             log.debug("[PROXY] Stream cancelado por el cliente (%s)", nivel)
         except httpx.TimeoutException:
-            log.warning(
-                "[PROXY] Timeout (%ss) en streaming %s -- intentando fallback",
-                timeout_s, nivel,
-            )
-            # [V27-FB] FIX: intentar fallback en cadena igual que _proxy_json
-            fb = TIMEOUT_FALLBACK.get(nivel)
-            if fb:
-                log.info("[PROXY] Fallback streaming timeout: %s -> %s", nivel, fb)
-                async with _metrics_lock:
-                    key = "timeout_" + nivel
-                    _proxy_metrics["fallbacks"][key] = (
-                        _proxy_metrics["fallbacks"].get(key, 0) + 1
-                    )
-                fb_url     = RUTAS[fb]["url"]
-                body_fb    = dict(body)
-                body_fb["model"] = RUTAS[fb]["modelo"]
-                fb_timeout = RUTAS[fb]["timeout_s"]
-                try:
-                    async with http_client.stream(
-                        "POST",
-                        fb_url,
-                        json=body_fb,
-                        timeout=httpx.Timeout(fb_timeout, connect=10.0),
-                    ) as resp_fb:
-                        if resp_fb.status_code >= 400:
-                            err = json.dumps({
-                                "error": {
-                                    "message": f"Fallback {fb} error {resp_fb.status_code}",
-                                    "type": "fallback_error",
-                                }
-                            })
-                            yield ("data: " + err + "\n\ndata: [DONE]\n\n").encode()
-                            return
-                        async for chunk in resp_fb.aiter_bytes():
-                            yield chunk
-                    return
-                except Exception as fb_exc:
-                    log.error(
-                        "[PROXY] Fallback streaming %s tambien fallo: %s",
-                        fb, fb_exc,
-                    )
+            log.warning("[PROXY] Timeout (%ss) en streaming %s", timeout_s, nivel)
             err = json.dumps(
                 {"error": {"message": "Timeout en " + nivel, "type": "timeout"}}
             )
@@ -612,28 +565,7 @@ async def _proxy_json(
         resp = await http_client.post(
             target_url, json=body, timeout=httpx.Timeout(timeout_s)
         )
-        # [V27-JSON] Proteger contra cuerpo no-JSON (Ollama puede retornar
-        # texto plano o HTML en errores HTTP 5xx)
-        try:
-            content = resp.json()
-        except Exception:
-            raw_text = resp.text[:500]
-            log.error(
-                "[PROXY] Respuesta no-JSON de backend %s (HTTP %s): %s",
-                nivel, resp.status_code, raw_text,
-            )
-            return JSONResponse(
-                content={
-                    "error": {
-                        "message": f"Backend retorno respuesta no-JSON (HTTP {resp.status_code})",
-                        "type": "backend_error",
-                        "details": raw_text,
-                    }
-                },
-                status_code=502,
-                headers={"X-Omen-Model-Used": modelo_usado, "X-Omen-Nivel": nivel},
-            )
-        response = JSONResponse(content=content, status_code=resp.status_code)
+        response = JSONResponse(content=resp.json(), status_code=resp.status_code)
         response.headers["X-Omen-Model-Used"] = modelo_usado
         response.headers["X-Omen-Nivel"] = nivel
         return response
@@ -740,7 +672,7 @@ async def _handle_timeout_fallback_json(
             resp2 = await http_client.post(
                 fb_url,
                 json=body_fb,
-                timeout=httpx.Timeout(RUTAS[fb]["timeout_s"]),
+                timeout=httpx.Timeout(RUTAS[fb]["timeout_s"], connect=10.0),  # [V27-B1]
             )
             response = JSONResponse(content=resp2.json(), status_code=resp2.status_code)
             response.headers["X-Omen-Model-Used"] = RUTAS[fb]["modelo"]

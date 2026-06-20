@@ -1,0 +1,597 @@
+Aquí tienes el análisis completo y los tres ficheros corregidos listos para copiar. No he podido entregártelos como descarga por limitaciones del entorno en esta sesión, pero están completos a continuación.
+
+***
+
+# 📋 Resumen de lo que hizo el colaborador + bugs residuales encontrados
+
+## ✅ Correcciones del colaborador (ya aplicadas en tus ficheros)
+- **V26-TIMEOUT**: `httpx.AsyncClient(timeout=30.0)` → `timeout=None` — cada nivel usa su propio `timeout_s`
+- **V26-INFRA**: Remapeo de todas las rutas a Ollama GPU (TabbyAPI/SGLang desactivados)
+- **V26-TOOLS**: `tool_result` incluido como contexto en `sanitize_for_ollama`
+- **V26-FIX**: `validate_and_truncate_messages` recalcula tras truncar + trunca contenido por palabras
+
+## 🔴 Bugs residuales que corrijo en V27
+
+| ID | Severidad | Descripción |
+|---|---|---|
+| **V27-C1** | 🔴 Crítico | `"phi4-mini"` aparece DOS veces en `ALIAS_A_NIVEL` — Python conserva la ÚLTIMA (`PHI4_DIRECTO`). Resultado: modelo `phi4-mini` iba al CPU en lugar del GPU |
+| **V27-C2** | 🟠 Medio | `opciones_extra` con `max_tokens` en el root del body — Ollama lo ignora silenciosamente. Debe ser `options.num_predict` |
+| **V27-C3** | 🟡 Menor | `LOG_FILE` apuntaba a `orchestrator_router.log` pero el Autoboot captura stdout en `router_v14.log` → logs partidos |
+| **V27-C4** | 🟠 Medio | URLs con `localhost` resuelven IPv6 (`::1`) primero → `Conexión rehusada`. Usar `127.0.0.1` explícito |
+| **V27-FB** | 🔴 Crítico | `_proxy_streaming` en timeout solo emitía error SSE sin intentar el fallback. `_proxy_json` sí lo hacía. Ahora el streaming también intenta la cadena `PROFUNDO→AGIL`, `PRECISO→PRECISO_OPT`, etc. |
+| **V27-JSON** | 🟠 Medio | `_proxy_json` llamaba `resp.json()` sin try/except — si Ollama devuelve HTML/texto en un error 500, el router crasheaba con `JSONDecodeError` no capturado |
+| **V27-ORDER** | 🟠 Medio | En `proxy_request`, `validate_and_truncate_messages` se llamaba ANTES de `sanitize_for_ollama` → los tokens se estimaban sobre arrays sin normalizar (sobreestimaba, truncaba innecesariamente) |
+
+***
+
+# 📁 FICHEROS FINALES V27
+
+## `config.py` — V27
+
+Copia esto en `omen_router_modules/config.py`:
+
+```python
+#!/usr/bin/env python3
+"""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║ omen_router_modules/config.py — Configuración centralizada                 ║
+║ OMEN AI Router V14 (build V27)                                              ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║ [V21-R1] Módulo de configuración separado.                                  ║
+║ [V21-R2] Todas las constantes validadas y documentadas.                     ║
+║ [V26-INFRA] Remapeo: TabbyAPI/SgLang desactivados → todo en Ollama GPU.     ║
+║                                                                              ║
+║ CORRECCIONES V27:                                                            ║
+║ ✔ [V27-C1] FIX alias "phi4-mini" conflictivo en ALIAS_A_NIVEL.              ║
+║            El dict tenía DOS entradas para "phi4-mini":                     ║
+║              "phi4-mini": "CHAT"          ← primera (ignorada)              ║
+║              "phi4-mini": "PHI4_DIRECTO"  ← segunda (activa — INCORRECTO) ║
+║            Python conserva la ÚLTIMA → phi4-mini iba al CPU :11435         ║
+║            en lugar del nivel CHAT en GPU.                                  ║
+║            FIX: una sola entrada "phi4-mini" → "CHAT".                     ║
+║            PHI4_DIRECTO solo via "phi4-direct" / "phi4-directo".           ║
+║                                                                              ║
+║ ✔ [V27-C2] FIX max_tokens en opciones_extra → options.num_predict.          ║
+║            Ollama ignora "max_tokens" en el root del body.                  ║
+║            inject_opciones_extra() en proxy.py V27 mergea el sub-dict.     ║
+║                                                                              ║
+║ ✔ [V27-C3] FIX LOG_FILE → router_v14.log                                   ║
+║            El Autoboot redirige stdout a router_v14.log.                    ║
+║            Antes el RotatingFileHandler escribía en orchestrator_router.log ║
+║            → logs partidos en dos ficheros.                                 ║
+║                                                                              ║
+║ ✔ [V27-C4] FIX URLs backend con 127.0.0.1 explícito (IPv4).                ║
+║            localhost → IPv6 (::1) primero → conexión rechazada.            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+"""
+
+import os
+import subprocess
+from typing import Optional
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FILESYSTEM DETECTION
+# ─────────────────────────────────────────────────────────────────────────────
+_UNSAFE_FS = frozenset({"exfat", "vfat", "fat32", "ntfs", "fuseblk"})
+
+
+def detect_filesystem(path: str) -> str:
+    """Detecta el tipo de filesystem de un directorio dado."""
+    try:
+        result = subprocess.run(
+            ["df", "--output=fstype", path],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            lines = result.stdout.strip().split("\n")
+            if len(lines) >= 2:
+                return lines [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/130579223/1f19829c-2f1f-4759-978b-f8613f0a9ca4/config-5.py?AWSAccessKeyId=ASIA2F3EMEYEXTLFQ2RE&Signature=42Zmgr%2FKof41AvW2yR8HmwTyCTs%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEAwaCXVzLWVhc3QtMSJHMEUCIQCkbjNRzDfevsza6t9Fv4mJjUZGJfpkmpb3W0Tzd7odIAIgFrAmvvLzduq9e1Z9uquqOu6qSmGMUSlFND0PPt0uHn8q%2FAQI1f%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FARABGgw2OTk3NTMzMDk3MDUiDC9lR7PqpZmRmiwoZyrQBLTSLQIlJ9gkdpqXnBw4ocgAc8u3niccmQyfszdzEE8Npq4Vp84e1PDzaJLfUYwmCu7%2BgoRdbU9F2MsrOCaPBflfgcVb0lRMI3Gh635gJXZg6pVOfNtVqpFupI5xVRTT9%2FmiRHr%2B9SIYkPS%2BrtEbajby7GXTk7q7Hx%2FVQHJ9ImxFXnhk8lu%2B371n9EC6JJP%2FXnG%2Bk2R67Z5c1LTk8KPeaaBGfbPrH1YSAUThxc3XPkWlb7WQNN9kiS60zOtp0hnext2rLiSmP1K4qsJY2KSFRnsl3XYQXjAQnipwzzvEFpzGrEU3nmwazauHcbk7r1bFM34p%2FLRUNaSMSou5kTvtHqzOxrYgkzZQrbXmD64aUDcCaGplEHOmNx8u3lV4LA5NfnAPpcUCpYjSz7bDieqfJv0ldRnL7BozKSuLcjscdJYmHmE2mzUXcvb%2F2uJ4Hg%2FCdhibWg5M2KVThIkXWubFh1wfiAH3jTw0gQJ2Vxm40O3cMw%2Bn4rUHfn8Ibw064wPDD2NfDFWf0SOcOe5wekt4ylN4fb0XV03urPLfD6qCaZTEjiREO%2FnLutKeJOyufC49gZ8eGbZ9rbhCtH%2FVLeVOLi9Ln8V3hXWpv7csM3kZbsD461UtPNijQEPi46lFJbfbmAVlE8U9S9gExvzbQMZ%2FIKODjfEojjfH%2FbnT419RpJKfOTkbM8k%2BpsnCf0Kb1dS1ynzAUogXcEeUxB0kmAfDMX9FOMScw8JdaTFu6XrPtnyLKk8A7G9FLJvwseNAoiw7dGwE9q5rZoaixj06LQiCnhswiPXZ0QY6mAE51ArDD2ZKZPU%2BuhNSlnBL%2FyQlimU4e6MdFGwTiHT%2Fr%2F3zJOKEO%2BaLlQbgERgrrUhv9qOqxi2beI80ffAMp2Vvobw52ref976TrbBXr7RS2plegRoCerL8RQBAJweOnhVBbytcvjM7bSElW4DZrCrAwi%2BK85EJfORJloUgNyXZPe2OqNzL0VBLwqMbDJoqRvo6rT1scv%2BG2Q%3D%3D&Expires=1781958747).strip().lower()
+    except Exception:
+        pass
+    return "unknown"
+
+
+def validate_db_dir(candidate: str) -> str:
+    """
+    Valida que el directorio de la DB está en un filesystem compatible.
+    Si no, busca alternativa segura (ext4/tmpfs).
+    Retorna la ruta segura a usar.
+    """
+    if os.path.isdir(candidate):
+        fs = detect_filesystem(candidate)
+        if fs not in _UNSAFE_FS:
+            return candidate
+
+    if not os.path.exists(candidate):
+        try:
+            os.makedirs(candidate, exist_ok=True)
+            fs = detect_filesystem(candidate)
+            if fs not in _UNSAFE_FS:
+                return candidate
+        except OSError:
+            pass
+
+    home_candidate = os.path.join(os.path.expanduser("~"), "ai_cluster")
+    os.makedirs(home_candidate, exist_ok=True)
+    fs = detect_filesystem(home_candidate)
+    if fs not in _UNSAFE_FS:
+        return home_candidate
+
+    tmp_candidate = os.path.join("/tmp", "omen_agent_db")
+    os.makedirs(tmp_candidate, exist_ok=True)
+    return tmp_candidate
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DIRECTORIO DE LA DB DEL AGENTE
+# ─────────────────────────────────────────────────────────────────────────────
+_AGENT_DB_DIR_RAW = os.environ.get(
+    "AGENT_DB_DIR",
+    os.path.join(os.path.expanduser("~"), "ai_cluster"),
+)
+AGENT_DB_DIR: str = validate_db_dir(_AGENT_DB_DIR_RAW)
+DB_PATH: str = os.path.join(AGENT_DB_DIR, "agent_tasks.db")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# URLS DE BACKENDS
+# [V27-C4] 127.0.0.1 explícito — evita resolución IPv6 de "localhost"
+# ─────────────────────────────────────────────────────────────────────────────
+OLLAMA_GPU_URL  = os.environ.get("OLLAMA_GPU_URL",  "http://127.0.0.1:11434")
+OLLAMA_CPU_URL  = os.environ.get("OLLAMA_CPU_URL",  "http://127.0.0.1:11435")
+SGLANG_URL      = os.environ.get("SGLANG_URL",      "http://127.0.0.1:30000")
+TABBYAPI_URL    = os.environ.get("TABBYAPI_URL",    "http://127.0.0.1:5000")
+CHROMA_URL      = os.environ.get("CHROMA_URL",      "http://127.0.0.1:8001")
+SEARXNG_URL     = os.environ.get("SEARXNG_URL",     "http://127.0.0.1:8888")
+
+# Endpoints derivados
+OLLAMA_GPU_CHAT       = f"{OLLAMA_GPU_URL}/api/chat"
+OLLAMA_GPU_GENERATE   = f"{OLLAMA_GPU_URL}/api/generate"
+OLLAMA_CPU_CHAT       = f"{OLLAMA_CPU_URL}/api/chat"
+OLLAMA_CPU_GENERATE   = f"{OLLAMA_CPU_URL}/api/generate"
+SGLANG_CHAT           = f"{SGLANG_URL}/v1/chat/completions"
+TABBYAPI_CHAT         = f"{TABBYAPI_URL}/v1/chat/completions"
+TABBYAPI_MODEL_LOAD   = f"{TABBYAPI_URL}/v1/model/load"
+TABBYAPI_MODEL_UNLOAD = f"{TABBYAPI_URL}/v1/model/unload"
+TABBYAPI_MODELS       = f"{TABBYAPI_URL}/v1/models"
+
+# Embeddings
+EMBED_CPU_URL   = f"{OLLAMA_CPU_URL}/api/embeddings"
+EMBED_MODEL     = os.environ.get("EMBED_MODEL", "nomic-embed-text")
+EMBED_THRESHOLD = float(os.environ.get("EMBED_THRESHOLD", "0.52"))
+
+# Phi4 (clasificador LLM)
+PHI4_CPU_URL      = f"{OLLAMA_CPU_URL}/api/generate"
+PHI4_CPU_CHAT_URL = f"{OLLAMA_CPU_URL}/api/chat"
+PHI4_CPU_TAGS     = f"{OLLAMA_CPU_URL}/api/tags"
+PHI4_GPU_CHAT_URL = f"{OLLAMA_GPU_URL}/api/chat"
+PHI4_MODEL        = "phi4-mini"
+PHI4_FALLBACK     = "phi4:latest"
+
+# ChromaDB RAG
+CHROMA_COLLECTION = os.environ.get("CHROMA_COLLECTION", "obsidian_vault")
+RAG_TOP_K         = int(os.environ.get("RAG_TOP_K", "5"))
+RAG_MAX_DIST      = float(os.environ.get("RAG_MAX_DIST", "0.75"))
+RAG_NIVELES       = frozenset({"PROFUNDO", "AGIL", "MASIVO", "PRECISO", "PRECISO_OPT"})
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RUTAS DE MODELOS
+# [V26-INFRA] Todo en Ollama GPU
+# [V27-C2] opciones_extra con sub-dict "options" para num_predict
+# ─────────────────────────────────────────────────────────────────────────────
+RUTAS: dict = {
+    "CHAT": {
+        "modelo": "phi4-mini:latest",
+        "url": OLLAMA_GPU_CHAT,
+        "backend": "ollama_gpu",
+        "health_url": f"{OLLAMA_GPU_URL}/api/tags",
+        "timeout_s": 60.0,
+        "opciones_extra": {"temperature": 0.7, "options": {"num_predict": 2048}},
+    },
+    "INSTANTANEO": {
+        "modelo": "phi4-mini:latest",
+        "url": OLLAMA_GPU_CHAT,
+        "backend": "ollama_gpu",
+        "health_url": f"{OLLAMA_GPU_URL}/api/tags",
+        "timeout_s": 30.0,
+        "opciones_extra": {"temperature": 0.3, "options": {"num_predict": 1024}},
+    },
+    "AGIL": {
+        "modelo": "phi4:latest",
+        "url": OLLAMA_GPU_CHAT,
+        "backend": "ollama_gpu",
+        "health_url": f"{OLLAMA_GPU_URL}/api/tags",
+        "timeout_s": 90.0,
+        "opciones_extra": {"temperature": 0.6, "options": {"num_predict": 4096}},
+    },
+    "PROFUNDO": {
+        "modelo": "deepseek-r1:14b",
+        "url": OLLAMA_GPU_CHAT,
+        "backend": "ollama_gpu",
+        "health_url": f"{OLLAMA_GPU_URL}/api/tags",
+        "timeout_s": 180.0,
+        "opciones_extra": {"temperature": 0.2},
+    },
+    "PRECISO": {
+        "modelo": "phi4-reasoning:plus",
+        "url": OLLAMA_GPU_CHAT,
+        "backend": "ollama_gpu",
+        "health_url": f"{OLLAMA_GPU_URL}/api/tags",
+        "timeout_s": 150.0,
+        "opciones_extra": {"temperature": 0.1},
+    },
+    "PRECISO_OPT": {
+        "modelo": "phi4-reasoning:14b-q4_K_M",
+        "url": OLLAMA_GPU_CHAT,
+        "backend": "ollama_gpu",
+        "health_url": f"{OLLAMA_GPU_URL}/api/tags",
+        "timeout_s": 120.0,
+        "opciones_extra": {"temperature": 0.1},
+    },
+    "MASIVO": {
+        "modelo": "qwen2.5:32b",
+        "url": OLLAMA_GPU_CHAT,
+        "backend": "ollama_gpu",
+        "health_url": f"{OLLAMA_GPU_URL}/api/tags",
+        "timeout_s": 240.0,
+        "opciones_extra": {"temperature": 0.4},
+    },
+    "CODIGO": {
+        "modelo": "deepseek-coder-v2:latest",
+        "url": OLLAMA_GPU_CHAT,
+        "backend": "ollama_gpu",
+        "health_url": f"{OLLAMA_GPU_URL}/api/tags",
+        "timeout_s": 90.0,
+        "opciones_extra": {"temperature": 0.2, "options": {"num_predict": 3072}},
+    },
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ALIAS → NIVEL
+# [V27-C1] UNA sola entrada "phi4-mini" → "CHAT"
+#          (eliminada la segunda entrada duplicada que apuntaba a PHI4_DIRECTO)
+# ─────────────────────────────────────────────────────────────────────────────
+ALIAS_A_NIVEL: dict = {
+    "ruteador-auto": None,
+    "auto":          None,
+    "chat":                "CHAT",
+    "instantaneo":         "INSTANTANEO",
+    "instantáneo":         "INSTANTANEO",
+    "agil":                "AGIL",
+    "ágil":                "AGIL",
+    "profundo":            "PROFUNDO",
+    "deep":                "PROFUNDO",
+    "preciso":             "PRECISO",
+    "phi-mayor-precision": "PRECISO",
+    "phi-optimizada":      "PRECISO_OPT",
+    "masivo":              "MASIVO",
+    "massive":             "MASIVO",
+    "codigo":              "CODIGO",
+    "code":                "CODIGO",
+    "deepseek-r1:14b":             "PROFUNDO",
+    "qwen2.5:32b":                 "MASIVO",
+    "phi4-mini:latest":            "CHAT",
+    "phi4-mini":                   "CHAT",      # [V27-C1] única entrada
+    "phi4:latest":                 "AGIL",
+    "phi4":                        "AGIL",
+    "deepseek-coder-v2:latest":    "CODIGO",
+    "deepseek-coder-v2":           "CODIGO",
+    "phi4-reasoning:plus":         "PRECISO",
+    "phi4-reasoning:14b-q4_k_m":  "PRECISO_OPT",
+    "llama-3.1-8b-awq":            "AGIL",
+    "llama-3.1-8b-exl2":           "CHAT",
+    "qwen2.5-coder-7b-exl2":       "CODIGO",
+    "phi4-direct":  "PHI4_DIRECTO",   # [V27-C1] único acceso a PHI4_DIRECTO
+    "phi4-directo": "PHI4_DIRECTO",
+    "agent-autonomo": "AGENT",
+    "agente":         "AGENT",
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TIMEOUT FALLBACK
+# ─────────────────────────────────────────────────────────────────────────────
+_TIMEOUT_FALLBACK_RAW: dict = {
+    "PROFUNDO": "AGIL",
+    "MASIVO":   "PROFUNDO",
+    "PRECISO":  "PRECISO_OPT",
+    "AGIL":     "CHAT",
+}
+
+
+def _validate_fallback_chain(fallbacks: dict) -> dict:
+    for start in fallbacks:
+        visited = {start}
+        current = fallbacks.get(start)
+        while current:
+            if current in visited:
+                raise ValueError(
+                    f"Ciclo detectado en TIMEOUT_FALLBACK: {start} → ... → {current}"
+                )
+            visited.add(current)
+            current = fallbacks.get(current)
+    return fallbacks
+
+
+TIMEOUT_FALLBACK: dict = _validate_fallback_chain(_TIMEOUT_FALLBACK_RAW)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AGENT ENGINE CONFIG
+# ─────────────────────────────────────────────────────────────────────────────
+MAX_ACTIVE_TASKS         = int(os.environ.get("MAX_ACTIVE_TASKS", "3"))
+MAX_PROMPT_LEN           = int(os.environ.get("MAX_PROMPT_LEN", "10000"))
+AGENT_CONTEXT_MAX_TOKENS = int(os.environ.get("AGENT_CONTEXT_MAX_TOKENS", "12000"))
+
+AGENT_TO_NIVEL: dict = {
+    "research":  "PROFUNDO",
+    "code":      "CODIGO",
+    "creative":  "AGIL",
+    "quick":     "INSTANTANEO",
+    "analysis":  "MASIVO",
+    "precise":   "PRECISO",
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RATE LIMITING
+# ─────────────────────────────────────────────────────────────────────────────
+RATE_LIMIT_MAX    = int(os.environ.get("RATE_LIMIT_MAX", "60"))
+RATE_LIMIT_WINDOW = float(os.environ.get("RATE_LIMIT_WINDOW", "60.0"))
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LOGGING
+# [V27-C3] router_v14.log — unifica con redirección del Autoboot
+# ─────────────────────────────────────────────────────────────────────────────
+LOG_DIR = os.environ.get(
+    "OMEN_LOG_DIR",
+    os.path.join(os.path.expanduser("~"), "ai_cluster", "logs"),
+)
+LOG_FILE         = os.path.join(LOG_DIR, "router_v14.log")  # [V27-C3]
+LOG_MAX_BYTES    = 50 * 1024 * 1024
+LOG_BACKUP_COUNT = 3
+
+HEALTH_TTL = 15.0
+
+EMBED_DESCRIPTIONS: dict = {
+    "CHAT":        "conversación casual, saludo, pregunta simple, charla informal, respuesta corta",
+    "INSTANTANEO": "pregunta rápida, definición, dato concreto, cálculo simple, traducción breve",
+    "AGIL":        "análisis de documento, resumen extenso, investigación, agente con herramientas, RAG",
+    "PROFUNDO":    "razonamiento complejo, matemáticas avanzadas, lógica formal, problema multi-paso, deducción",
+    "PRECISO":     "razonamiento preciso, verificación formal, demostración, análisis riguroso, corrección de pruebas",
+    "MASIVO":      "análisis masivo de datos, documento muy largo, comparación extensa, síntesis de múltiples fuentes",
+    "CODIGO":      "programación, código fuente, debugging, refactoring, script, función, algoritmo, API",
+}
+
+SYSTEM_PHI4: str = (
+    "Eres un clasificador de prompts. Responde SOLO con UNA palabra: "
+    "CHAT, INSTANTANEO, AGIL, PROFUNDO, PRECISO, MASIVO o CODIGO. "
+    "CHAT=conversación simple. INSTANTANEO=pregunta rápida/dato. "
+    "AGIL=análisis/documentos/agentes. PROFUNDO=razonamiento complejo/matemáticas. "
+    "PRECISO=verificación rigurosa/formal. MASIVO=análisis extenso/múltiples fuentes. "
+    "CODIGO=programación/código."
+)
+```
+
+***
+
+## `proxy.py` — V27
+
+Toma tu `proxy.py` actual y aplica **exactamente estos 4 cambios**:
+
+***
+
+### Cambio 1 — `inject_opciones_extra` (V27-C2)
+
+**Busca:**
+```python
+def inject_opciones_extra(body: dict, nivel: str, modelo: str = "") -> dict:
+    """[V22-C1] Inyecta opciones del nivel y garantiza num_ctx >= 16384 en GPU."""
+    extras = RUTAS[nivel].get("opciones_extra") or {}
+    for k, v in extras.items():
+        body.setdefault(k, v)
+```
+
+**Reemplaza por:**
+```python
+def inject_opciones_extra(body: dict, nivel: str, modelo: str = "") -> dict:
+    """[V22-C1] Inyecta opciones del nivel y garantiza num_ctx >= 16384 en GPU.
+    [V27-C2] FIX: opciones_extra puede incluir sub-dict 'options' con num_predict.
+             Se mergea en body["options"] correctamente.
+             Ollama ignora "max_tokens" en root — solo atiende options.num_predict.
+    """
+    extras = RUTAS[nivel].get("opciones_extra") or {}
+    for k, v in extras.items():
+        if k == "options" and isinstance(v, dict):
+            # [V27-C2] Mergear sub-dict options en body["options"]
+            opts = body.get("options", {})
+            if not isinstance(opts, dict):
+                opts = {}
+            for ok, ov in v.items():
+                opts.setdefault(ok, ov)
+            body["options"] = opts
+        else:
+            body.setdefault(k, v)
+```
+
+***
+
+### Cambio 2 — `_proxy_json` (V27-JSON)
+
+**Busca:**
+```python
+        resp = await http_client.post(
+            target_url, json=body, timeout=httpx.Timeout(timeout_s)
+        )
+        response = JSONResponse(content=resp.json(), status_code=resp.status_code)
+        response.headers["X-Omen-Model-Used"] = modelo_usado
+        response.headers["X-Omen-Nivel"] = nivel
+        return response
+```
+
+**Reemplaza por:**
+```python
+        resp = await http_client.post(
+            target_url, json=body, timeout=httpx.Timeout(timeout_s)
+        )
+        # [V27-JSON] Proteger contra cuerpo no-JSON (Ollama puede retornar
+        # texto plano o HTML en errores HTTP 5xx)
+        try:
+            content = resp.json()
+        except Exception:
+            raw_text = resp.text[:500]
+            log.error(
+                "[PROXY] Respuesta no-JSON de backend %s (HTTP %s): %s",
+                nivel, resp.status_code, raw_text,
+            )
+            return JSONResponse(
+                content={
+                    "error": {
+                        "message": f"Backend retornó respuesta no-JSON (HTTP {resp.status_code})",
+                        "type": "backend_error",
+                        "details": raw_text,
+                    }
+                },
+                status_code=502,
+                headers={"X-Omen-Model-Used": modelo_usado, "X-Omen-Nivel": nivel},
+            )
+        response = JSONResponse(content=content, status_code=resp.status_code)
+        response.headers["X-Omen-Model-Used"] = modelo_usado
+        response.headers["X-Omen-Nivel"] = nivel
+        return response
+```
+
+***
+
+### Cambio 3 — `_proxy_streaming` timeout handler (V27-FB)
+
+**Busca (dentro del generador `_gen()`):**
+```python
+        except httpx.TimeoutException:
+            log.warning("[PROXY] Timeout (%ss) en streaming %s", timeout_s, nivel)
+            err = json.dumps(
+                {"error": {"message": "Timeout en " + nivel, "type": "timeout"}}
+            )
+            yield (
+                "data: " + err + "\n\ndata: [DONE]\n\n"
+            ).encode()
+```
+
+**Reemplaza por:**
+```python
+        except httpx.TimeoutException:
+            log.warning(
+                "[PROXY] Timeout (%ss) en streaming %s — intentando fallback",
+                timeout_s, nivel,
+            )
+            # [V27-FB] FIX: intentar fallback en cadena igual que _proxy_json.
+            # Antes se emitía error SSE directamente sin fallback.
+            fb = TIMEOUT_FALLBACK.get(nivel)
+            if fb:
+                log.info("[PROXY] Fallback streaming timeout: %s → %s", nivel, fb)
+                async with _metrics_lock:
+                    key = "timeout_" + nivel
+                    _proxy_metrics["fallbacks"][key] = (
+                        _proxy_metrics["fallbacks"].get(key, 0) + 1
+                    )
+                fb_url     = RUTAS[fb]["url"]
+                body_fb    = dict(body)
+                body_fb["model"] = RUTAS[fb]["modelo"]
+                fb_timeout = RUTAS[fb]["timeout_s"]
+                try:
+                    async with http_client.stream(
+                        "POST",
+                        fb_url,
+                        json=body_fb,
+                        timeout=httpx.Timeout(fb_timeout, connect=10.0),
+                    ) as resp_fb:
+                        if resp_fb.status_code >= 400:
+                            err = json.dumps({
+                                "error": {
+                                    "message": f"Fallback {fb} error {resp_fb.status_code}",
+                                    "type": "fallback_error",
+                                }
+                            })
+                            yield ("data: " + err + "\n\ndata: [DONE]\n\n").encode()
+                            return
+                        async for chunk in resp_fb.aiter_bytes():
+                            yield chunk
+                    return
+                except Exception as fb_exc:
+                    log.error(
+                        "[PROXY] Fallback streaming %s también falló: %s",
+                        fb, fb_exc,
+                    )
+            err = json.dumps(
+                {"error": {"message": "Timeout en " + nivel, "type": "timeout"}}
+            )
+            yield (
+                "data: " + err + "\n\ndata: [DONE]\n\n"
+            ).encode()
+```
+
+***
+
+### Cambio 4 — `proxy_request` orden sanitize→truncate (V27-ORDER)
+
+**Busca:**
+```python
+    """Proxy HTTP hacia el backend con fallback automatico.
+    [V25-FIX-TOKENS] Valida tokens antes de enviar."""
+    timeout_s = RUTAS.get(nivel, {}).get("timeout_s", 60.0)
+    modelo_usado = body.get("model", "unknown")
+    
+    # [V25-FIX-TOKENS] Validar y truncar si es necesario
+    body = validate_and_truncate_messages(body, nivel, modelo_usado)
+```
+
+**Reemplaza por:**
+```python
+    """Proxy HTTP hacia el backend con fallback automatico.
+    [V25-FIX-TOKENS] Valida tokens antes de enviar.
+    [V27-ORDER] FIX: sanitize_for_ollama ANTES de validate_and_truncate.
+    La estimación de tokens debe hacerse sobre content ya normalizado
+    a string, no sobre arrays (sobreestimaba y truncaba innecesariamente).
+    """
+    timeout_s    = RUTAS.get(nivel, {}).get("timeout_s", 60.0)
+    modelo_usado = body.get("model", "unknown")
+
+    # [V27-ORDER] sanitize PRIMERO (arrays→string), LUEGO truncar tokens
+    body = sanitize_for_ollama(body, nivel, modelo_usado)
+    # [V25-FIX-TOKENS] Validar y truncar si es necesario
+    body = validate_and_truncate_messages(body, nivel, modelo_usado)
+```
+
+***
+
+## `orchestrator_router_V14.py` — V27
+
+Este fichero **no necesita cambios de código**. El colaborador ya aplicó correctamente `timeout=None`. Solo actualiza las cadenas de versión:
+
+- `"OMEN AI Router V14 (build V25) — iniciando…"` → `"build V27"`
+- `version="14.25.0"` → `version="14.27.0"`
+- `"build": "V26"` → `"build": "V27"`
+- `"version": "14.26.0"` → `"version": "14.27.0"`
+
+***
+
+## 🚀 Despliegue
+
+```bash
+# 1. Hacer backup
+cp ~/ai_cluster/omen_router_modules/config.py ~/ai_cluster/omen_router_modules/config.py.v26.bak
+cp ~/ai_cluster/omen_router_modules/proxy.py ~/ai_cluster/omen_router_modules/proxy.py.v26.bak
+
+# 2. Copiar nuevos ficheros
+# (pegar los ficheros arriba)
+
+# 3. Reiniciar
+pkill -f orchestrator_router_V14
+sleep 3
+cd ~/ai_cluster && nohup python3 orchestrator_router_V14.py > logs/router_v14.log 2>&1 &
+
+# 4. Verificar
+sleep 8 && curl -s http://127.0.0.1:8000/health | jq '.backends'
+
+# 5. Test rápido
+curl -s -X POST http://127.0.0.1:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"chat","messages":[{"role":"user","content":"Hola"}],"stream":false}' \
+  | jq '.message.content'
+```

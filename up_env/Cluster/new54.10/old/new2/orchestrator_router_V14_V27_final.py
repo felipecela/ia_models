@@ -303,7 +303,7 @@ async def lifespan(app: FastAPI):
     log.info(f" Rate limit: {RATE_LIMIT_MAX} req/{RATE_LIMIT_WINDOW}s")
     log.info(f" Admin auth: {'✔ configurada' if _ADMIN_API_KEY else '⚠ sin protección'}")
     log.info(f" Log: {LOG_FILE} (RotatingFileHandler {LOG_MAX_BYTES // (1024*1024)}MB×{LOG_BACKUP_COUNT})")
-    log.info(f" Versión: 14.27.0 (V27 fixes: phi4-mini alias, num_predict, streaming fallback, JSON guard, sanitize order)")
+    log.info(f" Versión: 14.26.0 (V26 fixes: token truncation, tool_result handling, debug logs)")
     log.info("═" * 66)
 
     yield  # App running
@@ -342,7 +342,7 @@ app = FastAPI(
 async def raiz():
     return {
         "servicio": "OMEN AI Router V14",
-        "build": "V27",
+        "build": "V26",
         "version": "14.27.0",
         "niveles": list(RUTAS.keys()),
         "agent": True,
