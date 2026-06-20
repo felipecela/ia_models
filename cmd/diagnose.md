@@ -506,4 +506,150 @@ curl -s http://localhost:8000/v1/chat/completions \
 # No debe aparecer ningún HTTP 400 en logs
 
 
+---
+
+
+## Comandos que te pediría ejecutar ahora
+
+Si quieres, con estas salidas te digo exactamente qué parche aplicar.
+
+### 1) Ver si OpenClaw sigue arrancando con providers no deseados
+
+```bash
+docker exec openclaw-server sh -lc 'env | egrep "OPENAI|OLLAMA|OPENCLAW" | sort'
+```
+
+### 2) Ver la config real que OpenClaw está usando tras el inject
+
+```bash
+docker exec openclaw-server python3 - <<'PY'
+import json
+p="/data/.openclaw/openclaw.json"
+with open(p) as f:
+    d=json.load(f)
+print("providers =", list(d.get("models", {}).get("providers", {}).keys()))
+print("primary   =", d.get("agents", {}).get("defaults", {}).get("model", {}).get("primary"))
+for k,v in d.get("models", {}).get("providers", {}).items():
+    print(k, "baseUrl=", v.get("baseUrl"), "models=", len(v.get("models", [])))
+PY
+```
+
+### 3) Confirmar el patrón de timeout en vivo
+
+```bash
+tail -n 120 /home/fcela-ga/ai_cluster/logs/router_v14.log
+```
+
+### 4) Ver métricas del router después de reproducir el fallo una vez
+
+```bash
+curl -s http://localhost:8000/metrics | python3 -m json.tool
+```
+
+### 5) Hacer una prueba mínima directa al router, sin pasar por OpenClaw
+
+```bash
+curl -s http://localhost:8000/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model":"masivo",
+    "stream":false,
+    "messages":[{"role":"user","content":"hola"}]
+  }' | python3 -m json.tool
+```
+
+Si esta prueba directa funciona y desde OpenClaw falla, quedará prácticamente confirmado que **el inflado lo introduce OpenClaw**.
+
+### 6) Ver logs recientes de OpenClaw
+
+```bash
+docker logs --tail 200 openclaw-server
+```
+
+
+---
+
+
+Nueva evidencia clave: `masivo` falla también con `curl` directo
+
+Este comando directo:
+
+```bash
+curl -s http://localhost:8000/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model":"masivo",
+    "stream":false,
+    "messages":[{"role":"user","content":"hola"}]
+  }' | python3 -m json.tool
+```
+
+
+### A. Probar Ollama directo con `qwen2.5:32b`, 1 token, contexto pequeño
+
+```bash
+time curl --max-time 60 -s http://127.0.0.1:11434/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model":"qwen2.5:32b",
+    "stream":false,
+    "messages":[{"role":"user","content":"hola"}],
+    "options":{"num_predict":1,"num_ctx":2048}
+  }'
+```
+
+Si esto tarda mucho o no responde, `MASIVO` queda confirmado como no viable para chat interactivo.
+
+### B. Probar una ruta ligera del router
+
+```bash
+time curl --max-time 60 -s http://localhost:8000/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model":"chat",
+    "stream":false,
+    "messages":[{"role":"user","content":"hola"}],
+    "max_tokens":64
+  }'
+```
+
+Si `chat` responde y `masivo` no, el router funciona y el problema está concentrado en la ruta pesada.
+
+
+---
+
+
+Comprueba:
+
+```bash
+docker exec openclaw-server sh -lc 'env | egrep "OPENAI|OLLAMA|OPENCLAW" | sort'
+```
+
+Esperado:
+
+```text
+OPENCLAW_GATEWAY_TOKEN=...
+```
+
+Idealmente ya **sin** `OLLAMA_BASE_URL`.
+
+Luego:
+
+```bash
+docker logs --tail 80 openclaw-server
+```
+
+Ya no debería arrancar como:
+
+```text
+agent model: ollama/llama3.3
+```
+
+Y finalmente:
+
+```bash
+curl -s http://localhost:8000/metrics | python3 -m json.tool
+```
+
+
 
