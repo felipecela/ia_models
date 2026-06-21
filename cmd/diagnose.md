@@ -616,6 +616,15 @@ time curl --max-time 60 -s http://localhost:8000/v1/chat/completions \
 Si `chat` responde y `masivo` no, el router funciona y el problema está concentrado en la ruta pesada.
 
 
+Mientras corre la prueba de `masivo`:
+
+```bash
+watch -n 1 'nvidia-smi; echo; docker logs --tail 30 ollama-gpu-main'
+```
+
+Si ves VRAM llena, offload, carga prolongada o ausencia de tokens, ya tenemos la raíz operativa.
+
+
 ---
 
 
