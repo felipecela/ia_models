@@ -1,0 +1,73 @@
+model_list:
+  # Ollama GPU
+  - model_name: deepseek-r1-14b
+    litellm_params:
+      model: ollama_chat/deepseek-r1:14b
+      api_base: http://host.docker.internal:11434
+      temperature: 0.1
+      num_ctx: 16384
+  - model_name: qwen2.5-32b
+    litellm_params:
+      model: ollama_chat/qwen2.5:32b
+      api_base: http://host.docker.internal:11434
+      temperature: 0.1
+      num_ctx: 32768
+  - model_name: phi4-reasoning-plus
+    litellm_params:
+      model: ollama_chat/phi4-reasoning:plus
+      api_base: http://host.docker.internal:11434
+      temperature: 0.1
+      num_ctx: 32768
+  - model_name: phi4-mini
+    litellm_params:
+      model: ollama_chat/phi4-mini:latest
+      api_base: http://host.docker.internal:11434
+      temperature: 0.1
+      num_ctx: 131072
+  - model_name: phi4-reasoning-14b
+    litellm_params:
+      model: ollama_chat/phi4-reasoning:14b-q4_K_M
+      api_base: http://host.docker.internal:11434
+      temperature: 0.1
+      num_ctx: 32768
+  - model_name: phi4
+    litellm_params:
+      model: ollama_chat/phi4:latest
+      api_base: http://host.docker.internal:11434
+      temperature: 0.1
+      num_ctx: 16384
+  - model_name: deepseek-coder-v2
+    litellm_params:
+      model: ollama_chat/deepseek-coder-v2:latest
+      api_base: http://host.docker.internal:11434
+      temperature: 0.1
+      num_ctx: 32768
+
+  # Ollama CPU
+  - model_name: nomic-embed-text
+    litellm_params:
+      model: ollama/nomic-embed-text:latest
+      api_base: http://host.docker.internal:11435
+
+  # Motores Nativos
+  - model_name: llama-3.1-8b-awq
+    litellm_params:
+      model: openai/meta-llama/Meta-Llama-3.1-8B-Instruct
+      api_base: http://host.docker.internal:30000/v1
+  - model_name: llama-3.1-8b-exl2
+    litellm_params:
+      model: openai/llama-3.1-8b-exl2
+      api_base: http://host.docker.internal:5000/v1
+  - model_name: qwen2.5-coder-7b-exl2
+    litellm_params:
+      model: openai/qwen2.5-coder-7b-exl2
+      api_base: http://host.docker.internal:5000/v1
+
+  # NVIDIA AI Engine (NIM / Triton placeholder)
+  - model_name: nvidia-nim-model
+    litellm_params:
+      model: openai/nvidia-nim-model
+      api_base: http://host.docker.internal:8002/v1
+
+litellm_settings:
+  drop_params: true
