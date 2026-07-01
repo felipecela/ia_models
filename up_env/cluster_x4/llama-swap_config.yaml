@@ -1,0 +1,108 @@
+# ============================================================================
+# llama-swap_config.yaml — Clúster OMEN V57 (modo --swap)
+# ============================================================================
+# Destino en el host:  $AI_HOME/llama-swap_config.yaml  (~/ai_cluster/)
+# Usado por:           Autoboot_Cluster_V57.sh --swap  (sección 4b/8)
+# Escucha:             http://0.0.0.0:9090  (API compatible OpenAI en /v1)
+#
+# Filosofía (criterio rector del clúster):
+#   - Máximo razonamiento posible: cada modelo arranca con TODA la VRAM
+#     (8 GB) disponible, sin convivir con otros motores en GPU.
+#   - Se penaliza el tiempo, no la calidad: healthCheckTimeout amplio (15 min)
+#     para tolerar arranques fríos de contenedores + carga de pesos desde
+#     el SSD exFAT.
+#   - ttl: 0 → el modelo permanece cargado indefinidamente hasta que otra
+#     petición exija un modelo distinto (swap bajo demanda, sin descargas
+#     por inactividad que obligarían a recargar pesos).
+#
+# Notas de diseño:
+#   - Los contenedores se lanzan en PRIMER PLANO (sin -d) y con --rm:
+#     llama-swap gestiona su ciclo de vida (arranque, parada, sustitución).
+#   - Los alias de conveniencia (instantaneo/codigo/agil) NO se definen
+#     aquí: viven en LiteLLM (:4000) para no duplicar entradas en
+#     /v1/models y mantener un único punto de nomenclatura.
+#   - El grupo "gpu" con swap: true + exclusive: true garantiza que jamás
+#     habrá dos motores compitiendo por los 8 GB de VRAM (advertencia
+#     operativa nº1 de la consolidación V56, resuelta aquí).
+# ============================================================================
+
+healthCheckTimeout: 900
+logLevel: info
+
+models:
+
+  # --------------------------------------------------------------------------
+  # TabbyAPI / ExLlamaV2 — Llama 3.1 8B EXL2 (6.3G)
+  # Contexto ampliado a 8192 (advertencia nº2: 2048 era insuficiente para RAG)
+  # KV-cache FP16 ≈ 1 GB @ 8192 tokens — viable con la VRAM completa.
+  # --------------------------------------------------------------------------
+  "llama-3.1-8b-exl2":
+    proxy: "http://127.0.0.1:5000"
+    checkEndpoint: "/health"
+    ttl: 0
+    cmd: >
+      docker run --rm --name swap-tabby-llama
+      --network ai_net --gpus all -p 5000:5000
+      -v /home/fcela-ga/sgoinfre/ai_core/models:/models:ro
+      ghcr.io/theroyallab/tabbyapi:latest
+      main.py --host 0.0.0.0 --model-dir /models
+      --model-name llama-3.1-8b-exl2
+      --max-seq-len 8192 --port 5000
+    cmdStop: docker stop swap-tabby-llama
+
+  # --------------------------------------------------------------------------
+  # TabbyAPI / ExLlamaV2 — Qwen2.5 Coder 7B EXL2 (6.5G)
+  # Modelo de código. Antes inaccesible en V56 (TabbyAPI solo carga UN
+  # modelo por instancia); con llama-swap se arranca bajo demanda.
+  # KV-cache ≈ 470 MB @ 8192 tokens (GQA agresivo de Qwen2.5).
+  # --------------------------------------------------------------------------
+  "qwen2.5-coder-7b-exl2":
+    proxy: "http://127.0.0.1:5000"
+    checkEndpoint: "/health"
+    ttl: 0
+    cmd: >
+      docker run --rm --name swap-tabby-qwen
+      --network ai_net --gpus all -p 5000:5000
+      -v /home/fcela-ga/sgoinfre/ai_core/models:/models:ro
+      ghcr.io/theroyallab/tabbyapi:latest
+      main.py --host 0.0.0.0 --model-dir /models
+      --model-name qwen2.5-coder-7b-exl2
+      --max-seq-len 8192 --port 5000
+    cmdStop: docker stop swap-tabby-qwen
+
+  # --------------------------------------------------------------------------
+  # SGLang — Llama 3.1 8B AWQ (5.4G)
+  # Con VRAM en exclusiva se sube mem-fraction-static 0.78→0.85 y
+  # max-total-tokens 4096→8192 (más contexto real para razonamiento largo).
+  # --------------------------------------------------------------------------
+  "llama-3.1-8b-awq":
+    proxy: "http://127.0.0.1:30000"
+    checkEndpoint: "/health"
+    ttl: 0
+    cmd: >
+      docker run --rm --name swap-sglang-awq
+      --network ai_net --gpus all -p 30000:30000
+      -v /home/fcela-ga/sgoinfre/ai_core/models:/models:ro
+      --ipc=host
+      lmsysorg/sglang:latest
+      python3 -m sglang.launch_server
+      --model-path /models/llama-3.1-8b-awq
+      --port 30000 --host 0.0.0.0
+      --dtype float16 --quantization awq_marlin
+      --max-total-tokens 8192 --mem-fraction-static 0.85
+      --tp-size 1 --trust-remote-code --enable-memory-saver
+    cmdStop: docker stop swap-sglang-awq
+
+# ----------------------------------------------------------------------------
+# Grupo de exclusión: un solo motor GPU vivo en todo momento.
+# swap: true      → al pedir un modelo, se detiene el que esté corriendo.
+# exclusive: true → ningún modelo del grupo convive con otro.
+# ----------------------------------------------------------------------------
+groups:
+  gpu:
+    swap: true
+    exclusive: true
+    members:
+      - "llama-3.1-8b-exl2"
+      - "qwen2.5-coder-7b-exl2"
+      - "llama-3.1-8b-awq"

@@ -1,0 +1,77 @@
+# ============================================================================
+# litellm_config.yaml — Proxy LiteLLM para el clúster OMEN
+# Reemplaza a orchestrator_router_V5.py: alias, fallbacks y routing.
+# Arranque:  litellm --config /ruta/litellm_config.yaml --port 4000
+# Todos los modelos apuntan a llama-swap (:9292), que carga/descarga bajo
+# demanda. LiteLLM solo conoce alias lógicos => máxima flexibilidad.
+# ============================================================================
+
+model_list:
+  # --- Clasificador / orquestador "Phi" (ligero, residente en CPU) ----------
+  - model_name: phi-router            # primary de OpenClaw en modo automático
+    litellm_params:
+      model: openai/phi-router        # nombre tal cual lo expone llama-swap
+      api_base: http://127.0.0.1:9292/v1
+      api_key: "sk-noop"              # llama-swap no exige clave real
+
+  # --- Nivel INSTANTANEO / AGIL: generalista rápido -------------------------
+  - model_name: rapido
+    litellm_params:
+      model: openai/qwen3-8b
+      api_base: http://127.0.0.1:9292/v1
+      api_key: "sk-noop"
+
+  # --- Nivel CODIGO: TabbyAPI/ExLlamaV3 (máxima velocidad en la 4070) -------
+  - model_name: codigo
+    litellm_params:
+      model: openai/qwen25-coder-7b-exl
+      api_base: http://127.0.0.1:9292/v1
+      api_key: "sk-noop"
+
+  # --- Nivel PROFUNDO: razonamiento (offload parcial GPU+CPU) ---------------
+  - model_name: profundo
+    litellm_params:
+      model: openai/deepseek-r1-14b
+      api_base: http://127.0.0.1:9292/v1
+      api_key: "sk-noop"
+
+  # --- Nivel MASIVO: excepcional, solo CPU, TTL muy corto -------------------
+  - model_name: masivo
+    litellm_params:
+      model: openai/qwen25-32b
+      api_base: http://127.0.0.1:9292/v1
+      api_key: "sk-noop"
+
+  # --- Embeddings para routing semántico (alternativa al clasificador Phi) --
+  - model_name: embed
+    litellm_params:
+      model: openai/nomic-embed-text
+      api_base: http://127.0.0.1:9292/v1
+      api_key: "sk-noop"
+
+# ----------------------------------------------------------------------------
+# Fallbacks: si un alias falla, LiteLLM reintenta con el siguiente.
+# Ej.: si "codigo" no carga, cae a "rapido"; si "profundo" peta por VRAM,
+# cae a "rapido" para no dejar al usuario sin respuesta.
+# ----------------------------------------------------------------------------
+litellm_settings:
+  num_retries: 2
+  request_timeout: 600          # modelos grandes tardan en cargar la 1a vez
+  fallbacks:
+    - codigo: ["rapido"]
+    - profundo: ["rapido"]
+    - masivo: ["profundo", "rapido"]
+
+# ----------------------------------------------------------------------------
+# Routing semántico (OPCIONAL). Descomenta para que LiteLLM enrute por
+# similitud de embeddings en vez de depender del clasificador Phi.
+# Requiere el alias "embed" arriba.
+# ----------------------------------------------------------------------------
+# router_settings:
+#   routing_strategy: "semantic-similarity"
+#   semantic_router_settings:
+#     embedding_model: "embed"
+
+general_settings:
+  master_key: "sk-omen-local"   # cámbiala; OpenClaw la usará como api_key
+  # Habilita la UI de administración de LiteLLM en :4000/ui si la quieres.

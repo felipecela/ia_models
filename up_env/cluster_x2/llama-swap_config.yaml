@@ -1,0 +1,101 @@
+# ============================================================================
+# llama-swap_config.yaml — Carga/descarga de modelos bajo demanda
+# Reemplaza tu _conmutar_vram manual (docker stop/start).
+# Arranque (ejemplo Docker):
+#   docker run --gpus all -p 9292:8080 \
+#     -v /home/fcela-ga/sgoinfre/ai_core:/models \
+#     -v /ruta/llama-swap_config.yaml:/app/config.yaml \
+#     ghcr.io/mostlygeek/llama-swap:cuda
+#
+# Conceptos clave:
+#  - "ttl": segundos de inactividad tras los que el modelo se DESCARGA solo.
+#  - "groups": controlan coexistencia.
+#       * exclusive  -> solo 1 modelo del grupo en VRAM a la vez (auto-swap).
+#       * persistent -> no se descarga aunque haya swaps en otros grupos.
+#       * swap       -> comportamiento por defecto.
+#  - Las rutas /models/... apuntan al SSD exFAT (GGUF/EXL se leen bien).
+# ============================================================================
+
+# Carpeta donde llama-swap escribe logs/estado. DEBE estar en ext4 si usas
+# algo que requiera permisos; los GGUF en exFAT solo se leen, así que OK.
+
+groups:
+  # Solo UN modelo de GPU vivo a la vez: al pedir otro, se descarga el anterior
+  gpu:
+    swap: true
+    exclusive: true
+    members:
+      - qwen3-8b
+      - qwen25-coder-7b-exl
+      - deepseek-r1-14b
+  # Clasificador + embeddings residen en CPU y no estorban a la VRAM
+  cpu:
+    persistent: true
+    members:
+      - phi-router
+      - nomic-embed-text
+      - qwen25-32b        # masivo: CPU, pero con TTL corto (ver abajo)
+
+models:
+  # ---- Generalista rápido (GPU completa) -----------------------------------
+  qwen3-8b:
+    cmd: >
+      /app/llama-server
+      --model /models/gguf/Qwen3-8B-Q4_K_M.gguf
+      --port ${PORT}
+      --n-gpu-layers 99
+      --ctx-size 8192
+      --flash-attn
+    ttl: 300                # se descarga tras 5 min sin uso
+
+  # ---- Código: TabbyAPI/ExLlamaV3 (tus .exl2 ya descargados) ----------------
+  # llama-swap lanza TabbyAPI como proceso hijo; ajusta la ruta a tu binario.
+  qwen25-coder-7b-exl:
+    cmd: >
+      python -m tabbyapi
+      --model-dir /models/exllamav2_storage
+      --model-name Qwen2.5-Coder-7B-exl2
+      --port ${PORT}
+      --max-seq-len 8192
+    ttl: 300
+
+  # ---- Razonamiento profundo (offload parcial GPU+CPU) ---------------------
+  deepseek-r1-14b:
+    cmd: >
+      /app/llama-server
+      --model /models/gguf/DeepSeek-R1-14B-Q4_K_M.gguf
+      --port ${PORT}
+      --n-gpu-layers 28          # offload parcial: lo que quepa en 8 GB
+      --ctx-size 4096
+      --flash-attn
+    ttl: 180
+
+  # ---- Clasificador / orquestador "Phi" (CPU, ligero) ----------------------
+  phi-router:
+    cmd: >
+      /app/llama-server
+      --model /models/gguf/Phi-4-mini-Q4_K_M.gguf
+      --port ${PORT}
+      --n-gpu-layers 0           # CPU pura: no toca la VRAM
+      --ctx-size 4096
+    ttl: 0                       # 0 = no se descarga (persistente)
+
+  # ---- Embeddings para routing semántico (CPU) -----------------------------
+  nomic-embed-text:
+    cmd: >
+      /app/llama-server
+      --model /models/gguf/nomic-embed-text-v1.5-Q4_K_M.gguf
+      --port ${PORT}
+      --embeddings
+      --n-gpu-layers 0
+    ttl: 0
+
+  # ---- MASIVO: excepcional, CPU, TTL muy corto -----------------------------
+  qwen25-32b:
+    cmd: >
+      /app/llama-server
+      --model /models/gguf/Qwen2.5-32B-Q4_K_M.gguf
+      --port ${PORT}
+      --n-gpu-layers 0
+      --ctx-size 4096
+    ttl: 60                      # se descarga rápido para liberar RAM

@@ -1,0 +1,56 @@
+// ============================================================================
+// openclaw.json (JSON5) — config de OpenClaw para el clúster OMEN
+// Ubicación host:    ~/.openclaw/openclaw.json
+// Dentro del contenedor: /data/.openclaw/openclaw.json
+// IMPORTANTE: monta /data con BIND MOUNT a ruta real (NO symlink; exFAT no
+// admite symlinks y OpenClaw no escribe la config a través de enlaces).
+//
+// OpenClaw -> LiteLLM (:4000) -> llama-swap (:9292) -> motores.
+// OpenClaw solo conoce LiteLLM como un proveedor OpenAI-compatible.
+// ============================================================================
+{
+  models: {
+    providers: {
+      // Un único proveedor: el proxy LiteLLM. Todos los alias viven ahí.
+      litellm: {
+        api: "openai-completions",
+        baseUrl: "http://host.docker.internal:4000/v1", // o IP del host
+        apiKey: "sk-omen-local",                         // = master_key de LiteLLM
+        models: [
+          "phi-router",   // clasificador/orquestador (modo automático)
+          "rapido",       // INSTANTANEO / AGIL
+          "codigo",       // CODIGO
+          "profundo",     // PROFUNDO
+          "masivo",       // MASIVO
+        ],
+      },
+    },
+  },
+
+  agents: {
+    defaults: {
+      model: {
+        // Modo AUTOMATICO: Phi clasifica y delega a subagentes por alias.
+        primary: "litellm/phi-router",
+        // Si el clasificador no está disponible, cae a un generalista.
+        fallbacks: ["litellm/rapido"],
+      },
+    },
+
+    // Subagentes especializados: el orquestador Phi deriva la tarea al que
+    // corresponda. Tambien puedes invocarlos a mano (modo MANUAL).
+    subagents: {
+      veloz:    { model: { primary: "litellm/rapido" } },
+      coder:    { model: { primary: "litellm/codigo",   fallbacks: ["litellm/rapido"] } },
+      pensador: { model: { primary: "litellm/profundo", fallbacks: ["litellm/rapido"] } },
+      titan:    { model: { primary: "litellm/masivo",   fallbacks: ["litellm/profundo"] } },
+    },
+  },
+
+  // Pista de orquestación para Phi: cómo decidir el subagente.
+  // (Texto que puedes afinar en el system prompt del agente primary.)
+  // - Preguntas triviales/cortas        -> veloz
+  // - Programación, refactor, debugging  -> coder
+  // - Razonamiento/análisis/matemáticas  -> pensador
+  // - Tareas excepcionalmente grandes    -> titan
+}

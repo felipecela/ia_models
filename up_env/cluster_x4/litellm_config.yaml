@@ -1,0 +1,131 @@
+# ============================================================================
+# litellm_config.yaml — Clúster OMEN V57 (compatible con modo --swap)
+# ============================================================================
+# Destino en el host:  $AI_HOME/litellm_config.yaml  (~/ai_cluster/)
+# Usado por:           contenedor litellm-router (puerto 4000)
+#
+# Novedad V57: los alias de trabajo (instantaneo/codigo/agil) apuntan a
+# llama-swap (:9090), que arranca bajo demanda el motor adecuado con la
+# VRAM completa. Los fallbacks EXL2<->AWQ ahora SÍ funcionan siempre:
+# llama-swap levanta el motor destino aunque no estuviera corriendo.
+#
+# El contenedor litellm-router se lanza con:
+#   --add-host host.docker.internal:host-gateway
+# por lo que host.docker.internal resuelve al host desde dentro del contenedor.
+#
+# Criterio rector: máximo razonamiento, tiempos amplios (timeout 1800 s),
+# temperatura baja para respuestas deterministas.
+# ============================================================================
+
+model_list:
+
+  # ==========================================================================
+  # ALIAS DE TRABAJO (via llama-swap :9090 — modo --swap)
+  # ==========================================================================
+
+  # Alias general de razonamiento — Llama 3.1 8B AWQ sobre SGLang
+  - model_name: instantaneo
+    litellm_params:
+      model: openai/llama-3.1-8b-awq
+      api_base: http://host.docker.internal:9090/v1
+      api_key: "none"
+      temperature: 0.1
+      timeout: 1800
+
+  # Alias de código — Qwen2.5 Coder 7B EXL2 sobre TabbyAPI
+  # (en V56 este alias era inalcanzable: TabbyAPI solo cargaba llama;
+  #  con llama-swap el contenedor de qwen se arranca bajo demanda)
+  - model_name: codigo
+    litellm_params:
+      model: openai/qwen2.5-coder-7b-exl2
+      api_base: http://host.docker.internal:9090/v1
+      api_key: "none"
+      temperature: 0.1
+      timeout: 1800
+
+  # Alias ágil — Llama 3.1 8B EXL2 sobre TabbyAPI (contexto 8192)
+  - model_name: agil
+    litellm_params:
+      model: openai/llama-3.1-8b-exl2
+      api_base: http://host.docker.internal:9090/v1
+      api_key: "none"
+      temperature: 0.1
+      timeout: 1800
+
+  # ==========================================================================
+  # ORQUESTADOR (Ollama CPU :11435 — se mantiene activo también en --swap)
+  # ==========================================================================
+
+  # Orquestador ligero para enrutado/planificación de OpenClaw — sin usar VRAM
+  - model_name: orquestador
+    litellm_params:
+      model: ollama_chat/phi4-mini:latest
+      api_base: http://host.docker.internal:11435
+      temperature: 0.0
+      timeout: 1800
+
+  # ==========================================================================
+  # EMBEDDINGS (Ollama CPU :11435) — para ChromaDB / indexador del vault
+  # ==========================================================================
+
+  - model_name: nomic-embed-text
+    litellm_params:
+      model: ollama/nomic-embed-text:latest
+      api_base: http://host.docker.internal:11435
+
+  # ==========================================================================
+  # ENTRADAS FÍSICAS DIRECTAS (modos legacy --exl2 / --sglang)
+  # llama-swap publica los MISMOS puertos (5000/30000), por lo que estas
+  # entradas también funcionan en modo --swap una vez cargado el modelo.
+  # ==========================================================================
+
+  - model_name: llama-3.1-8b-awq
+    litellm_params:
+      model: openai/llama-3.1-8b-awq
+      api_base: http://host.docker.internal:30000/v1
+      api_key: "none"
+      temperature: 0.1
+      timeout: 1800
+
+  - model_name: llama-3.1-8b-exl2
+    litellm_params:
+      model: openai/llama-3.1-8b-exl2
+      api_base: http://host.docker.internal:5000/v1
+      api_key: "none"
+      temperature: 0.1
+      timeout: 1800
+
+  - model_name: qwen2.5-coder-7b-exl2
+    litellm_params:
+      model: openai/qwen2.5-coder-7b-exl2
+      api_base: http://host.docker.internal:5000/v1
+      api_key: "none"
+      temperature: 0.1
+      timeout: 1800
+
+  # ==========================================================================
+  # RESERVA — Ollama GPU (:11434). Descomentar solo si se ejecuta el modo
+  # por defecto con Ollama GPU activo y hay modelos descargados.
+  # NOTA: Ollama GPU NO arranca en modo --swap ni con --no-ollama.
+  # ==========================================================================
+  # - model_name: razonador-profundo
+  #   litellm_params:
+  #     model: ollama_chat/deepseek-r1:8b
+  #     api_base: http://host.docker.internal:11434
+  #     temperature: 0.1
+  #     timeout: 1800
+
+litellm_settings:
+  drop_params: true
+  num_retries: 2
+  request_timeout: 1800
+  # Fallbacks entre motores: con llama-swap son efectivos en cualquier
+  # momento (el motor destino se arranca bajo demanda).
+  fallbacks:
+    - instantaneo: ["agil"]
+    - codigo: ["instantaneo"]
+    - agil: ["instantaneo"]
+    - orquestador: ["instantaneo"]
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
